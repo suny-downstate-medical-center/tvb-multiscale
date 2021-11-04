@@ -1,8 +1,5 @@
 # TVB multiscale
-This module currently provides a solution to interface between TVB and NEST spiking networks for multiscale co-simulations.
-
-On the long term, it will be extended with the purpose to support integration with other spiking network simulators, by offering a generic way to interface between them and the TVB simulator.
- 
+This module currently provides a solution to interface between TVB and NetPyNE spiking networks for multiscale co-simulations.
 
 # Project structure
 At the top-level, we have the following folders:
@@ -24,9 +21,8 @@ This holds the whole codebase. In the below diagram, you can see a representatio
                 core
                 /  \
                /    \
-        tvb-nest    tvb-elephant
+        tvb-netpyne  (.. other spiking simulators)
 
-At the point when the module will support other spiking network simulators, a specific folder for it will be added here, at the same level as tvb_nest and tvb_elephant.
 
 Description of sub-folders:
 
@@ -35,8 +31,8 @@ Contains the base code that is considered generic/abstract enough to interface b
 
 Here, we also keep I/O related code (read/write from/to H5 format and plots).
 
-### tvb_nest
-Code for interfacing with NEST - depends on core and extends the classes defined there in order to specialize them for NEST (inside nest_models and interfaces).
+### tvb_netpyne
+Code for interfacing with NetPyNE - depends on core and extends the classes defined there in order to specialize them for NetPyNE (inside netpyne_models and interfaces).
 
 ### tvb_elephant
 Code that interfaces with Elephant and implements a wrapper around it that generates a co-simulator compatible stimulus.
