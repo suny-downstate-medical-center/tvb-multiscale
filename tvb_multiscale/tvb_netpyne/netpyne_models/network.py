@@ -1,0 +1,57 @@
+from tvb_multiscale.core.spiking_models.network import SpikingNetwork
+from tvb_multiscale.tvb_netpyne.ext.instance import NetpyneInstance
+
+from tvb_multiscale.tvb_netpyne.config import CONFIGURED, initialize_logger
+
+class NetpyneNetwork(SpikingNetwork):
+
+    """
+        NetpyneNetwork is a class representing a spiking network comprising of:
+        - a SpikingBrain class, i.e., neural populations organized per brain region they reside and neural model,
+        - a pandas.Series of DeviceSet classes of output (measuring/recording/monitor) devices,
+        - a pandas.Series of DeviceSet classes of input (stimulating) devices,
+        all of which are implemented as indexed mappings by inheriting from pandas.Series class.
+        The class also includes methods to return measurements (mean, sum/total data, spikes, spikes rates etc)
+        from output devices, as xarray.DataArrays.
+        e.g. SpikingPopulations can be indexed as:
+        spiking_network.brain_regions['rh-insula']['E'] for population "E" residing in region node "rh-insula",
+        and similarly for an output device:
+        spiking_network.output_devices['Excitatory']['rh-insula'], 
+        which measures a quantity labelled following the target population ("Excitatory"),
+        residing in region node "rh-insula".
+    """
+
+    netpyne_instance = None
+
+    # TODO: are these output devices needed?
+    # _OutputSpikeDeviceDict = NetpyneOutputSpikeDeviceDict
+    # _OutputContinuousTimeDeviceDict = NetpyneOutputContinuousTimeDeviceDict
+
+    def __init__(self, netpyne_instance,
+                 brain_regions=None,
+                 output_devices=None,
+                 input_devices=None,
+                 config=CONFIGURED):
+        self.netpyne_instance = netpyne_instance
+        super(NetpyneNetwork, self).__init__(brain_regions, output_devices, input_devices, config)
+
+    @property
+    def spiking_simulator_module(self):
+        return self.netpyne_instance
+
+    @property
+    def min_delay(self):
+        return 0 #self.nest_instance.GetKernelStatus("min_delay")
+
+    def configure(self, *args, **kwargs):
+        """Method to configure a simulation just before execution.
+        """
+        print("Netpyne:: configure simulation")
+        self.netpyne_instance.createAndPrepareNetwork()
+
+    def Run(self, simulation_length, *args, **kwargs):
+        """Method to simulate the NetPyNE network for a specific simulation_length (in ms).
+           It will run nest.Run(simulation_length, *args, **kwarg)
+        """
+        # print(f"Netpyne:: RUN simulation! Length {simulation_length}")
+        self.netpyne_instance.startSimulation(simulation_length)
