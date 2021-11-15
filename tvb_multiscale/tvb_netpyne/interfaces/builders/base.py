@@ -48,13 +48,7 @@ class TVBNetpyneInterfaceBuilder(TVBSpikeNetInterfaceBuilder):
 
     @property
     def spikeNet_min_delay(self):
-        # return self.nest_instance.GetKernelStatus("min_delay")
-        raise NotImplementedError
-
-    @property
-    def nest_min_delay(self):
-        # return self.nest_instance.GetKernelStatus("min_delay")
-        raise NotImplementedError
+        return self.netpyne_instance.minDelay()
 
     def assert_delay(self, delay):
         return np.maximum(self.spikeNet_min_delay, delay)

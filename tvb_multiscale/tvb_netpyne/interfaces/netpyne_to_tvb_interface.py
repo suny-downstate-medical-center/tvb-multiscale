@@ -18,24 +18,28 @@ class NetpyneToTVBInterface(SpikeNetToTVBinterface):
     @property
     def population_mean_spikes_number(self):
         
+        dt = 0.1 # TODO: de-hardcode time step
         values = []
-        spktimes, spkids = self.netpyne_instance.latestSpikes(0.1)
+        spktimes, spkids = self.netpyne_instance.latestSpikes(dt)
 
         if len(spktimes) == 0:
             return np.zeros((len(self.nodes_ids),))
+        devices = self.devices()
+        for i_node, node in enumerate(devices):
+            for pop in self[node].spiking_populations_labels:
+                cellGidsForNode = self.netpyne_instance.cellGidsForPop(pop)
+                inNode = np.isin(spkids, cellGidsForNode)
+                numSpikes = len(spkids[inNode])
+                if numSpikes > 0:
+                    # TODO: number_of_neurons started to give back always 1. Find why
+                    neud = self[node]
 
-        for i_node, node in enumerate(self.devices()):
-            # TODO: will inhib population also looped, when available?
-            cellGidsForNode = self.netpyne_instance.cellGidsForPop(self[node].population_label)
-            inNode = np.isin(spkids, cellGidsForNode)
-            numSpikes = len(spkids[inNode])
-            if numSpikes > 0:
-                num = numSpikes / self[node].number_of_neurons
-                print(f"Netpyne:: adding {num} spikes per neuron from {self[node].population_label}. Aprox rate =  {num * 10000}")
-                values.append(num)
-            else:
-                values.append(0.0)
-        return np.zeros((len(self.nodes_ids),))
+                    num = numSpikes / self[node].number_of_neurons
+                    print(f"Netpyne:: recorded {num} spikes per neuron from {pop}. Approx rate =  {num * 1000 * dt}")
+                    values.append(num)
+                else:
+                    values.append(0.0)
+        return np.array(values).flatten()
 
     # @property
     # def population_mean_spikes_activity(self):

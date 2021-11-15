@@ -68,43 +68,15 @@ def connect_device(netpyne_device, population, neurons_inds_fun, weight=1.0, del
         the connected NetpyneDevice
     """
 
-    # {netpyne_device.label}({netpyne_device.model}) {population}")
-
-    # neurons = get_populations_neurons(population, neurons_inds_fun)
-
     if netpyne_device.model in config.NETPYNE_INPUT_DEVICES_PARAMS_DEF:
+        
         print(f"Netpyne:: will connect input device {netpyne_device.model}. {netpyne_device.label} -> {population.label}")
-        
-        netpyne_device.population_label = population.label
-        netpyne_instance.createExternalConnection(sourcePop=netpyne_device.label, targetPop=population.label)
+        netpyne_device.spiking_populations_labels.append(population.label)
+        # TODO: process `receptor_type` somehow?
+        netpyne_instance.createExternalConnection(sourcePop=netpyne_device.label, targetPop=population.label, weight=weight, delay=delay)
     elif netpyne_device.model in config.NETPYNE_OUTPUT_DEVICES_PARAMS_DEF:
-        print(f"Netpyne:: will connect output device {netpyne_device.model}. {population.label}")
         
-        netpyne_device.population_label = population.label
+        print(f"Netpyne:: will connect output device {netpyne_device.model}. {population.label}")
+        netpyne_device.spiking_populations_labels.append(population.label)
 
     return netpyne_device
-    # if receptor_type is None:
-    #     receptor_type = 0
-    # if netpyne_device is None:
-    #     raise_value_error("There is no NEST instance!")
-    # resolution = 0.01 #nest_instance.GetKernelStatus("resolution")
-    # if isinstance(delay, dict):
-    #     if delay["low"] < resolution:
-    #         delay["low"] = resolution
-    #         warning("Minimum delay %f is smaller than the NEST simulation resolution %f!\n"
-    #                 "Setting minimum delay equal to resolution!" % (delay["low"], resolution))
-    #     if delay["high"] <= delay["low"]:
-    #         raise_value_error("Maximum delay %f is not smaller than minimum one %f!" % (delay["high"], delay["low"]))
-    # else:
-    #     if delay < resolution:
-    #         delay = resolution
-    #         warning("Delay %f is smaller than the NEST simulation resolution %f!\n"
-    #                 "Setting minimum delay equal to resolution!" % (delay, resolution))
-    # syn_spec = {"weight": weight, "delay": delay, "receptor_type": receptor_type}
-    # neurons = get_populations_neurons(population, neurons_inds_fun)
-    # if netpyne_device.model == "spike_recorder":
-    #     #                     source  ->  target
-    #     netpyne_device.Connect(neurons, netpyne_device.device, syn_spec=syn_spec)
-    # else:
-    #     netpyne_device.Connect(netpyne_device.device, neurons, syn_spec=syn_spec)
-    # return netpyne_device

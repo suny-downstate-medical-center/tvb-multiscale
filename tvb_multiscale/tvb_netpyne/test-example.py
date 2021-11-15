@@ -12,7 +12,7 @@ TvbProfile.set_profile(TvbProfile.LIBRARY_PROFILE)
 from tvb_multiscale.tvb_netpyne.config import NetpyneConfig as Config
 
 work_path = os.getcwd()
-outputs_path = os.path.join(work_path, "myoutputs/RedWongWang")
+outputs_path = os.path.join(work_path, "netpyne-bound-outputs/RedWongWang")
 config = Config(output_base=outputs_path)
 
 config.figures.SHOW_FLAG = True 
@@ -111,7 +111,7 @@ number_of_regions = simulator.connectivity.region_labels.shape[0]
 spiking_nodes_ids = []  # the indices of fine scale regions modeled with NetPyNE
 # We model parahippocampal cortices (left and right) with NetPyNE
 for id in range(number_of_regions):
-    if simulator.connectivity.region_labels[id].find("hippo") > 0: # TODO: change to "hippocampal_L" to include only L
+    if simulator.connectivity.region_labels[id].find("hippo") > 0:
         spiking_nodes_ids.append(id)
         
 
@@ -323,6 +323,8 @@ netpyne_model_builder.output_devices = []
 # ----------------------------------------------------------------------------------------------------------------
 
 # Now the NetpyneModelBuilder can configure and build the spiking network!
+tvb_to_netpyne_state_variable = "R_e" # TODO: better name?
+netpyne_model_builder.state_variable = tvb_to_netpyne_state_variable
 netpyne_network = netpyne_model_builder.build_spiking_network()
 
 ##################################################################################################################
@@ -407,7 +409,7 @@ if tvb_to_netpyne_mode == "rate":
         "weights": tvb_weight_fun, "delays": tvb_delay_fun, "receptor_type": 0,
         # --------------------------------------------------------------------------------------------------------------
         #             TVB sv -> NetPyNE population
-        "connections": {"R_e": ["E"]},  # connection from TVB state variable to NetPyNE spiking population
+        "connections": {tvb_to_netpyne_state_variable: ["E"]},  # R_e - connection from TVB state variable to NetPyNE spiking population
         "source_nodes": None, "target_nodes": None}]  # None means all regions' connections 
 
     if lamda > 0.0:
@@ -421,7 +423,7 @@ if tvb_to_netpyne_mode == "rate":
             "weights": tvb_weight_fun, "delays": tvb_delay_fun, "receptor_type": 0,
             # --------------------------------------------------------------------------------------------------------------
             #             TVB sv -> NetPyNE population
-            "connections": {"R_e": ["I"]},
+            "connections": {tvb_to_netpyne_state_variable: ["I"]}, # "R_e"
             "source_nodes": None, "target_nodes": None   # None means all regions' connections 
             } 
         )
@@ -492,7 +494,6 @@ if netpyne_to_tvb:
     connections["Rin_e"] = ["E"]
     connections["Rin_i"] = ["I"]
     tvb_netpyne_builder.spikeNet_to_tvb_interfaces = [
-        # TODO: seems "spike_recorder" not defined yet
         {"model": "spike_recorder",  # NetPyNE device to record spikes
          "params": {},  # Optional parameters to the NetPyNE device 
     # ----Properties potentially set as function handles with args (netpyne_node_id=None)--
@@ -518,9 +519,12 @@ simulation_length=110.0  # Set at least 1100.0 for a meaningful simulation
 transient = simulation_length/11  # a transient to be removed for rate and correlation computations
 t = time.time()
 results = simulator.run(simulation_length=simulation_length)
+
+# TODO: is below ever needed?
 # Integrate NetPyNE one more NetPyNE time step so that multimeters get the last time point
 # unless you plan to continue simulation later
-simulator.run_spiking_simulator(0.05) # TODO: simulator.tvb_spikeNet_interface.netpyne_instance.GetKernelStatus("resolution")
+# simulator.run_spiking_simulator(0.05)
+
 print("\nSimulated in %f secs!" % (time.time() - t))
 
 # Clean-up NetPyNE simulation

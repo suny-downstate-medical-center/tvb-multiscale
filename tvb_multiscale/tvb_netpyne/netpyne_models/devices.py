@@ -1,4 +1,5 @@
 import neuron
+import numpy
 from tvb_multiscale.core.spiking_models.devices import Device, InputDevice, OutputDevice, SpikeRecorder
 
 class NetpyneDevice(Device):
@@ -20,7 +21,8 @@ class NetpyneDevice(Device):
         if self.model == "poisson_generator":
             raise NotImplementedError
         elif self.model == "spike_generator_placeholder":
-            self.device.convertFiringRate(values_dict, self.label)
+            for pop in self.spiking_populations_labels:
+                self.device.convertFiringRate(values_dict, self.label, pop)
 
     def Get(self, attrs=None):
         """Method to get attributes of the device.
@@ -36,8 +38,8 @@ class NetpyneDevice(Device):
            Returns:
             connections' objects.
         """
-        # TODO: connections should not be empty
-        return []
+        # TODO: confirm/deny that tvb implementation is interested only in number of connectins. If so, it's equivalent to number of artificial neurons/stimuli
+        return self.neurons
 
     def _SetToConnections(self, values_dict, connections=None):
         """Method to set attributes of the connections from/to the device
@@ -77,13 +79,19 @@ class NetpyneInputDevice(NetpyneDevice, InputDevice):
     """NetpyneInputDevice class to wrap around a NetPyNE input (stimulating) device"""
 
     def __init__(self, device, netpyne_instance, *args, **kwargs):
+        self.spiking_populations_labels = []
         kwargs["model"] = kwargs.pop("model", "netpyne_input_device")
         super(NetpyneInputDevice, self).__init__(device, netpyne_instance, *args, **kwargs)
 
     @property
     def neurons(self):
         """Method to get the indices of all the neurons the device is connected to."""
-        return self.device.neuronsConnecting(internalPopulation=self.population_label, externalNode=self.label)
+        neurons = []
+        for pop in self.spiking_populations_labels:
+            neurons.append(
+                self.device.neuronsConnecting(internalPopulation=pop, externalNode=self.label)
+            )
+        return numpy.array(neurons).flatten()
 
 class NetpyneSpikeGenerator(NetpyneInputDevice):
 
@@ -103,18 +111,26 @@ NetpyneInputDeviceDict.update(NetpyneCurrentInputDeviceDict)
 # Output devices
 
 class NetpyneOutputDevice(NetpyneDevice, OutputDevice):
+
+    def __init__(self, device, netpyne_instance, *args, **kwargs):
+        self.spiking_populations_labels = []
+        super(NetpyneOutputDevice, self).__init__(device, netpyne_instance, *args, **kwargs)
     
     @property
     def neurons(self):
         """Method to get the indices of all the neurons the device is connected from."""
-        return self.device.neuronsConnecting(internalPopulation=self.population_label)
+        neurons = []
+        for pop in self.spiking_populations_labels:
+            neurons.append(
+                self.device.neuronsConnecting(internalPopulation=pop)
+            )
+        return numpy.array(neurons).flatten()
 
 class NetpyneSpikeRecorder(NetpyneOutputDevice, SpikeRecorder):
     
     @property
     def events(self):
-        # TODO:
-        return []
+        return [] # TODO: never called, with 'rate' mode at least
 
     @property
     def number_of_events(self):

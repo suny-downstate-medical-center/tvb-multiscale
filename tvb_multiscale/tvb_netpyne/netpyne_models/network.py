@@ -41,7 +41,7 @@ class NetpyneNetwork(SpikingNetwork):
 
     @property
     def min_delay(self):
-        return 0 #self.nest_instance.GetKernelStatus("min_delay")
+        return self.netpyne_instance.minDelay()
 
     def configure(self, *args, **kwargs):
         """Method to configure a simulation just before execution.
@@ -51,7 +51,5 @@ class NetpyneNetwork(SpikingNetwork):
 
     def Run(self, simulation_length, *args, **kwargs):
         """Method to simulate the NetPyNE network for a specific simulation_length (in ms).
-           It will run nest.Run(simulation_length, *args, **kwarg)
         """
-        # print(f"Netpyne:: RUN simulation! Length {simulation_length}")
-        self.netpyne_instance.startSimulation(simulation_length)
+        self.netpyne_instance.run(simulation_length)

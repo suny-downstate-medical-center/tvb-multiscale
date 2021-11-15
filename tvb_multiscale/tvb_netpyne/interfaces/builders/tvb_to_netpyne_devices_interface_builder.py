@@ -15,16 +15,14 @@ class TVBtoNetpyneDeviceInterfaceBuilder(TVBtoSpikeNetDeviceInterfaceBuilder):
     @property
     def spiking_dt(self):
         try:
-            # TODO:
-            return 0.1 # self.netpyne_instance.GetKernelStatus("resolution")
+            return self.netpyne_instance.dt()
         except:
             return super(TVBtoNetpyneDeviceInterfaceBuilder, self).spiking_dt
 
     @property
     def min_delay(self):
         try:
-            # TODO:
-            return 0 # self.netpyne_instance.GetKernelStatus("min_delay")
+            return self.netpyne_instance.minDelay()
         except:
             return self.default_min_delay
 

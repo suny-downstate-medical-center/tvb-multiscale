@@ -32,6 +32,23 @@ class NetpyneModelBuilder(SpikingModelBuilder):
         # self.compile_install_nest_modules(self.modules_to_install)
         # self.confirm_compile_install_nest_models(self._models)
 
+    def set_synapse(self, syn_model, weight, delay, receptor_type, params={}):
+        """Method to set the synaptic model, the weight, the delay,
+           the synaptic receptor type, and other possible synapse parameters
+           to a synapse_params dictionary.
+           Arguments:
+            - syn_model: the name (string) of the synapse model
+            - weight: the weight of the synapse
+            - delay: the delay of the connection,
+            - receptor_type: the receptor type
+            - params: a dict of possible synapse parameters
+           Returns:
+            a dictionary of the whole synapse configuration
+        """
+        syn_spec = {'synapse_model': syn_model, 'weight': weight, 'delay': delay, 'receptor_type': receptor_type}
+        syn_spec.update(params)
+        return syn_spec
+
     node_creation_iteration = 0
     def build_spiking_population(self, pop_label, model, size, params):
         """This methods builds a NetpynePopulation instance,
@@ -45,7 +62,8 @@ class NetpyneModelBuilder(SpikingModelBuilder):
            Returns:
             a NetpynePopulation class instance
         """
-        # TODO.askTvb: direct way to get node id??
+        # TODO: very hacky way..
+        # TODO.TVB: direct way to get node id??
         if self.node_creation_iteration >= 2:
             index = 1
         else:
@@ -66,7 +84,7 @@ class NetpyneModelBuilder(SpikingModelBuilder):
     def _create_artificial_cells(self, size, project_to_node, project_to_pop):
         for node_id, node_label in enumerate(self.tvb_connectivity.ordered_labels):
             if node_id not in self.spiking_nodes_ids:
-                self.netpyne_instance.createArtificialCells(node_label, project_to_node, project_to_pop, size, params=None)
+                self.netpyne_instance.createArtificialCells(self.state_variable, node_label, project_to_node, project_to_pop, size, params=None)
 
     def connect_two_populations(self, pop_src, src_inds_fun, pop_trg, trg_inds_fun, conn_spec, syn_spec):
         """Method to connect two NetpynePopulation instances in the SpikingNetwork.
@@ -80,20 +98,8 @@ class NetpyneModelBuilder(SpikingModelBuilder):
             synapse_params: a dict of parameters of the synapses among the neurons of the two populations,
                             including weight, delay and synaptic receptor type ones
         """
-        # Prepare the parameters of connectivity:
-        # conn_spec = self._prepare_conn_spec(pop_src, pop_trg, conn_spec)
-        # # Prepare the parameters of the synapse:
-        # syn_spec = self._prepare_syn_spec(syn_spec)
-        # # We might create the same connection multiple times for different synaptic receptors...
-        # receptors = ensure_list(syn_spec["receptor_type"])
-        # for receptor in receptors:
-        #     syn_spec["receptor_type"] = receptor
-        #     self.nest_instance.Connect(get_populations_neurons(pop_src, src_inds_fun),
-        #                                get_populations_neurons(pop_trg, trg_inds_fun),
-        #                                conn_spec, syn_spec)
-
-        # TODO: parse incomming configuration. Use data from syn_spec instead of 'exc'
-        self.netpyne_instance.createInternalConnection(pop_src.label, pop_trg.label, 'exc')
+        # TODO: parse also conn_spec. And should we also use syn_spec["receptor_type"], src_inds_fun, trg_inds_fun? (see NEST for reference)
+        self.netpyne_instance.createInternalConnection(pop_src.label, pop_trg.label, syn_spec["synapse_model"], syn_spec["weight"], syn_spec["delay"])
 
     def build_spiking_region_node(self, label="", input_node=None, *args, **kwargs):
         """This methods builds a NetpyneRegionNode instance,
@@ -114,7 +120,7 @@ class NetpyneModelBuilder(SpikingModelBuilder):
            - population(s) (pandas.Series), and
            - brain region nodes (pandas.Series) they target.
            See tvb_multiscale.core.spiking_models.builders.factory
-           and tvb_multiscale.tvb_nest.nest_models.builders.nest_factory"""
+           and tvb_multiscale.tvb_netpyne.netpyne_models.builders.netpyne_factory"""
         # TODO: check the following assumption: this part is used only to record spiking activity for observation, not for updating TVB state
         return build_and_connect_devices(devices, create_device, connect_device,
                                          self._spiking_brain, self.config, netpyne_instance=self.netpyne_instance)

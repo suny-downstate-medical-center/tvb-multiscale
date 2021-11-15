@@ -5,7 +5,6 @@ from tvb_multiscale.core.interfaces.base import TVBSpikeNetInterface
 
 
 class TVBNetpyneInterface(TVBSpikeNetInterface):
-    # TODO: populate with proper stuff
     _available_input_devices = NetpyneInputDeviceDict.keys()
     _current_input_devices = NetpyneCurrentInputDeviceDict.keys()
     _spike_rate_input_devices = NetpyneSpikeInputDeviceDict.keys()

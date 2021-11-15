@@ -48,7 +48,7 @@ class TVBSpikeNetInterface(object):
         LOG.info("%s created!" % self.__class__)
 
     def __repr__(self):
-        return self.__class__.__name__ + " TVB-NEST Interface"
+        return self.__class__.__name__ + " TVB-NEST Interface" # TODO.TVB: change NEST to more generic term
 
     def __str__(self):
         return self.print_str()

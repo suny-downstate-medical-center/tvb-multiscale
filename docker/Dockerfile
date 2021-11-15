@@ -76,9 +76,16 @@ RUN cd $NEST; \
           ${NEST_SRC}; \
     make; make install
 
+RUN pip3 install neuron # if this failed, do: #/home/docker/env/neurosci/bin/python3 -m pip
+RUN pip3 install netpyne
+# to fetch vecevent.mod containing `VecStim`. Probably we should somehow get this file individually, not the whole repo
+RUN git clone https://github.com/suny-downstate-medical-center/netpyne-course-2021.git
+RUN nrnivmodl netpyne-course-2021
+
 # Install nestml
+# checking out branch v3.1 as code from default branch didn't compile due to compatibility issues
 RUN $VENV/bin/pip3 install setuptools; \
-    git clone --depth 1 https://github.com/nest/nestml.git; \
+    git clone --depth 1 --branch v3.1 https://github.com/nest/nestml.git; \
     cd nestml; \
     $VENV/bin/python setup.py install
 
@@ -112,7 +119,7 @@ RUN cd tvb-root; \
     cd ../tvb_contrib; \
     $VENV/bin/python setup.py develop
 
-RUN git clone --depth 1 https://github.com/the-virtual-brain/tvb-multiscale.git
+RUN git clone --depth 1 --branch development https://github.com/suny-downstate-medical-center/tvb-multiscale
 ARG LAST_SHA_MULTISCALE=LATEST
 RUN cd tvb-multiscale; \
     git pull; \
