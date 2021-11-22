@@ -1,20 +1,24 @@
 from tvb_multiscale.core.spiking_models.population import SpikingPopulation
 
-class NetpynePopulation(SpikingPopulation):
+class  NetpynePopulation(SpikingPopulation):
 
     netpyne_instance = None
 
-    def __init__(self, node_collection, label, model, netpyne_instance = None):
+    def __init__(self, nodes, netpyne_instance, pop_label, model, brain_region, **kwargs):
+        # TODO: label and model not needed?
         self.netpyne_instance = netpyne_instance
-        super(NetpynePopulation, self).__init__(node_collection, label, model)
+        kwargs["label"] = pop_label
+        kwargs["model"] = model
+        kwargs["brain_region"] = brain_region
+        super(NetpynePopulation, self).__init__(nodes, **kwargs)
 
     def _print_neurons(self):
         pass
 
     @property
-    def neurons(self):
+    def gids(self):
         """Method to get a sequence (list, tuple, array) of the individual gids of populations' neurons"""
-        gids = self.netpyne_instance.cellGids(self._population.label)
+        gids = self.netpyne_instance.cellGidsForPop(self._population.label)
         return gids
 
     def _Set(self, values_dict, neurons=None):
@@ -73,4 +77,16 @@ class NetpynePopulation(SpikingPopulation):
              Dictionary of sequences (lists, tuples, or arrays) of connections' attributes.
 
         """
+        pass
+
+    @property
+    def spiking_simulator_module(self):
+        return self.netpyne_instance
+
+    @property
+    def _assert_spiking_simulator(self):
+        pass
+
+    @property
+    def _assert_nodes(self, nodes=None):
         pass

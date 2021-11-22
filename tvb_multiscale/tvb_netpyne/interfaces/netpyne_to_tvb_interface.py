@@ -24,21 +24,18 @@ class NetpyneToTVBInterface(SpikeNetToTVBinterface):
 
         if len(spktimes) == 0:
             return np.zeros((len(self.nodes_ids),))
-        devices = self.devices()
-        for i_node, node in enumerate(devices):
-            for pop in self[node].spiking_populations_labels:
-                cellGidsForNode = self.netpyne_instance.cellGidsForPop(pop)
-                inNode = np.isin(spkids, cellGidsForNode)
-                numSpikes = len(spkids[inNode])
-                if numSpikes > 0:
-                    # TODO: number_of_neurons started to give back always 1. Find why
-                    neud = self[node]
-
-                    num = numSpikes / self[node].number_of_neurons
-                    print(f"Netpyne:: recorded {num} spikes per neuron from {pop}. Approx rate =  {num * 1000 * dt}")
-                    values.append(num)
-                else:
-                    values.append(0.0)
+        nodes = self.devices()
+        for node in nodes:
+            device = self[node]
+            cellGidsForNode = self.netpyne_instance.cellGidsForPop(device.population_label)
+            inNode = np.isin(spkids, cellGidsForNode)
+            numSpikes = len(spkids[inNode])
+            if numSpikes > 0:
+                num = numSpikes / self[node].number_of_neurons
+                print(f"Netpyne:: recorded {num} spikes per neuron from {device.label}. Approx rate =  {num * 1000 / dt}")
+                values.append(num)
+            else:
+                values.append(0.0)
         return np.array(values).flatten()
 
     # @property

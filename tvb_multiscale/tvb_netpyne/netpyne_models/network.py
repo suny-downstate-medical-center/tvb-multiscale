@@ -40,6 +40,10 @@ class NetpyneNetwork(SpikingNetwork):
         return self.netpyne_instance
 
     @property
+    def dt(self):
+        return self.netpyne_instance.dt()
+
+    @property
     def min_delay(self):
         return self.netpyne_instance.minDelay()
 

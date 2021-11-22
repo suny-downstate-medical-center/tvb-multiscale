@@ -1,6 +1,6 @@
 class NodeCollection(object):
     
-    def __init__(self, label, model, number, params):
+    def __init__(self, label, number):
         self.label = label
         self.number = number
 

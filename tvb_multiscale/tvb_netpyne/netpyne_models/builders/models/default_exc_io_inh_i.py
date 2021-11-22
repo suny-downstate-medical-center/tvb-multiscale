@@ -1,7 +1,7 @@
 from tvb_multiscale.core.config import CONFIGURED
-from tvb_multiscale.tvb_netpyne.netpyne_models.builders.base import NetpyneModelBuilder
+from tvb_multiscale.tvb_netpyne.netpyne_models.builders.base import NetpyneNetworkBuilder
 
-class DefaultExcIOInhIBuilder(NetpyneModelBuilder):
+class DefaultExcIOInhIBuilder(NetpyneNetworkBuilder):
 
     def __init__(self, tvb_simulator, spiking_nodes_ids, netpyne_instance=None, config=CONFIGURED):
         super(DefaultExcIOInhIBuilder, self).__init__(tvb_simulator, spiking_nodes_ids, netpyne_instance=netpyne_instance, config=config)
@@ -9,13 +9,18 @@ class DefaultExcIOInhIBuilder(NetpyneModelBuilder):
         self.scale_i = 1
     
     def set_defaults(self):
-        # TODO:
+        # TODO: set defaults
         # self.set_populations()
         # self.set_populations_connections()
         # self.set_nodes_connections()
         # self.set_output_devices()
         # self.set_input_devices()
         pass
+
+    def build(self, set_defaults=True):
+        if set_defaults:
+            self.set_defaults()
+        return super(DefaultExcIOInhIBuilder, self).build()
 
     # def receptor_E_fun(self):
     #     return 0

@@ -6,7 +6,7 @@ from tvb_multiscale.tvb_netpyne.config import CONFIGURED
 from tvb_multiscale.tvb_netpyne.netpyne_models.devices import NetpyneInputDeviceDict, NetpyneOutputDeviceDict
 from tvb_multiscale.tvb_netpyne.ext.instance import NetpyneInstance
 
-def create_device(device_model, params=None, config=CONFIGURED, netpyne_instance=None, **kwargs):
+def create_device(device_model, params={}, config=CONFIGURED, netpyne_instance=None, **kwargs):
     """Method to create a NetpynDevice.
        Arguments:
         device_model: name (string) of the device model
@@ -16,11 +16,6 @@ def create_device(device_model, params=None, config=CONFIGURED, netpyne_instance
        Returns:
         the NetpyneDevice class, and optionally, the NetPyNE instance if it is loaded here.
     """
-    if netpyne_instance is None:
-        netpyne_instance = NetpyneInstance()
-        return_netpyne = True
-    else:
-        return_netpyne = False
     
     # Get the default parameters for this device...
     if device_model in NetpyneInputDeviceDict.keys():
@@ -44,16 +39,14 @@ def create_device(device_model, params=None, config=CONFIGURED, netpyne_instance
     netpyne_device = netpyne_instance.createDevice(device_model, params=default_params)
     
     DeviceClass = devices_dict[device_model]
-    device = DeviceClass(netpyne_device, label=label, netpyne_instance=netpyne_instance)
-
-    if return_netpyne:
-        return device, netpyne_instance
-    else:
-        return device
+    device = DeviceClass(netpyne_device, netpyne_instance=netpyne_instance, label=label)
+    device.model = device_model # TODO: nest passes this through initializers chain and assigns deeply in `_NESTNodeCollection` or so
+    device.label = label
+    return device
 
 
-def connect_device(netpyne_device, population, neurons_inds_fun, weight=1.0, delay=0.0, receptor_type=0, netpyne_instance=None,
-                   config=CONFIGURED, **kwargs):
+def connect_device(netpyne_device, population, neurons_inds_fun, weight=1.0, delay=0.0, receptor_type=0,
+                   syn_spec=None, conn_spec=None, config=CONFIGURED, **kwargs):
     """This method connects a NetpyneDevice to a NetpynePopulation instance.
        Arguments:
         netpyne_device: the NetpyneDevice instance
@@ -68,15 +61,19 @@ def connect_device(netpyne_device, population, neurons_inds_fun, weight=1.0, del
         the connected NetpyneDevice
     """
 
+    netpyne_instance = netpyne_device.netpyne_instance
+    spiking_population_label = population.brain_region + "." + population.label # TODO: factor out this label creation
     if netpyne_device.model in config.NETPYNE_INPUT_DEVICES_PARAMS_DEF:
         
-        print(f"Netpyne:: will connect input device {netpyne_device.model}. {netpyne_device.label} -> {population.label}")
-        netpyne_device.spiking_populations_labels.append(population.label)
+        target = spiking_population_label
+        print(f"Netpyne:: will connect input device {netpyne_device.model}. {netpyne_device.label} -> {target}")
         # TODO: process `receptor_type` somehow?
-        netpyne_instance.createExternalConnection(sourcePop=netpyne_device.label, targetPop=population.label, weight=weight, delay=delay)
+        netpyne_instance.createExternalConnection(sourcePop=netpyne_device.label, targetPop=target, weight=weight, delay=delay)
     elif netpyne_device.model in config.NETPYNE_OUTPUT_DEVICES_PARAMS_DEF:
         
-        print(f"Netpyne:: will connect output device {netpyne_device.model}. {population.label}")
-        netpyne_device.spiking_populations_labels.append(population.label)
+        netpyne_device.population_label = spiking_population_label
+        print(f"Netpyne:: will connect output device {netpyne_device.model} -- {netpyne_device.population_label}")
+    else:
+        print(f"Netpyne:: couldn't connect device. Unknown model {netpyne_device.model}")
 
     return netpyne_device

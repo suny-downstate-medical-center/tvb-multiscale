@@ -1,7 +1,6 @@
 import numpy as np
 
 from tvb_multiscale.tvb_netpyne.netpyne_models.devices import NetpyneInputDeviceDict
-# from tvb_multiscale.tvb_nest.interfaces.builders.tvb_to_nest_devices_interface_builder import TVBtoNESTDeviceInterfaceBuilder
 # from tvb_multiscale.tvb_nest.interfaces.builders.tvb_to_nest_parameter_interface_builder import TVBtoNESTParameterInterfaceBuilder
 from tvb_multiscale.tvb_netpyne.interfaces.builders.tvb_to_netpyne_devices_interface_builder import TVBtoNetpyneDeviceInterfaceBuilder
 from tvb_multiscale.tvb_netpyne.interfaces.builders.netpyne_to_tvb_interface_builder import NetpyneToTVBInterfaceBuilder

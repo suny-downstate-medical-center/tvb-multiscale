@@ -158,11 +158,11 @@ class DefaultInterfaceBuilder(TVBNetpyneInterfaceBuilder):
             self.spikeNet_to_tvb_interfaces = []
             self.build_default_netpyne_to_tvb_interfaces()
 
-    def build_interface(self, tvb_netpyne_interface=None, tvb_to_netpyne_mode="rate", netpyne_to_tvb=True):
-        self.default_build(tvb_to_netpyne_mode, netpyne_to_tvb)
-        if not isinstance(tvb_netpyne_interface, TVBNetpyneInterface):
-            tvb_netpyne_interface = self._tvb_netpyne_interface()
-        return super(DefaultInterfaceBuilder, self).build_interface(tvb_netpyne_interface)
+    def build_interface(self, tvb_spikeNet_interface=None, tvb_to_spikeNet_mode="rate", spikeNet_to_tvb=True):
+        self.default_build(tvb_to_spikeNet_mode, spikeNet_to_tvb)
+        if not isinstance(tvb_spikeNet_interface, TVBNetpyneInterface):
+            tvb_spikeNet_interface = self._tvb_netpyne_interface()
+        return super(DefaultInterfaceBuilder, self).build_interface(tvb_spikeNet_interface)
 
 
 class DefaultMultiSynapseInterfaceBuilder(DefaultInterfaceBuilder):

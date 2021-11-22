@@ -1,7 +1,7 @@
-from tvb_multiscale.core.config import Config
+from tvb_multiscale.core.config import Config as BaseConfig
 from tvb_multiscale.core.utils.log_utils import initialize_logger as initialize_logger_base
 
-class NetpyneConfig(Config):
+class Config(BaseConfig):
     
     DEFAULT_MODEL = "default_model_placeholder" # TODO: what's the default model?
 
@@ -21,7 +21,7 @@ class NetpyneConfig(Config):
                                         #  "spike_multimeter": {'record_from': ["spike"], "record_to": "memory"}
                                          }
 
-CONFIGURED = NetpyneConfig(initialize_logger=False)
+CONFIGURED = Config(initialize_logger=False)
 
 def initialize_logger(name, target_folder=None):
     if target_folder is None:

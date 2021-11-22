@@ -77,14 +77,13 @@ RUN cd $NEST; \
           ${NEST_SRC}; \
     make; make install
 
-RUN pip3 install neuron # if this failed, do: #/home/docker/env/neurosci/bin/python3 -m pip
-RUN pip3 install netpyne
+RUN $VENV/bin/pip3 install neuron
+RUN $VENV/bin/pip3 install netpyne
 # to fetch vecevent.mod containing `VecStim`. Probably we should somehow get this file individually, not the whole repo
-RUN git clone https://github.com/suny-downstate-medical-center/netpyne-course-2021.git
-RUN nrnivmodl netpyne-course-2021
+# RUN git clone https://github.com/suny-downstate-medical-center/netpyne-course-2021.git
+# RUN nrnivmodl netpyne-course-2021
 
 # Install nestml
-# checking out branch v3.1 as code from default branch didn't compile due to compatibility issues
 RUN $VENV/bin/pip3 install setuptools; \
     git clone https://github.com/nest/nestml.git; \
     cd nestml; \
