@@ -11,8 +11,7 @@ class Config(BaseConfig):
                           "conn_spec": {"allow_autapses": True, 'allow_multapses': True, 'rule': "all_to_all",
                                         "indegree": None, "outdegree": None, "N": None, "p": 0.1}}
 
-    NETPYNE_INPUT_DEVICES_PARAMS_DEF = {"poisson_generator": {"allow_offgrid_times": False},
-                                        "spike_generator_placeholder": {"allow_offgrid_times": False}
+    NETPYNE_INPUT_DEVICES_PARAMS_DEF = {"poisson_generator": {"allow_offgrid_times": False} # TODO: is allow_offgrid_times is legacy from NEST?
                                         }
     NETPYNE_OUTPUT_DEVICES_PARAMS_DEF = {
                                         #  "multimeter": {"record_from": ["V_m"], "record_to": "memory"},

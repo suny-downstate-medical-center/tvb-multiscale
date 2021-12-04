@@ -26,10 +26,11 @@ class TVBtoNetpyneDeviceInterfaceBuilder(TVBtoSpikeNetDeviceInterfaceBuilder):
         except:
             return self.default_min_delay
 
-    def build_and_connect_devices(self, devices, nodes, *args, **kwargs):
+    def build_and_connect_devices(self, devices, nodes):
         # TODO: otherwise - create artif cells (or stubs at least) here. It would be more precise, as we wouldn't need hacky state_variable, and we could process them all if necessary. Inspect internals of build_and_connect_devices
         # self.netpyne_instance.createCells()
         # ..... OR investigate possibility of creating more and more cells by Netpyne
         devices = build_and_connect_devices(devices, create_device, connect_device,
-                                         nodes, self.config, netpyne_instance=self.netpyne_instance)
+                                            nodes, self.config, devices=self.spiking_network.input_proxies,
+                                            netpyne_instance=self.netpyne_instance)        
         return devices

@@ -62,18 +62,12 @@ class NetpyneNetworkBuilder(SpikingNetworkBuilder):
             a NetpynePopulation class instance
         """
         # TODO: parse low-level values from `params`
-        pop_label = label
-
         size = int(np.round(size))
 
         # node collection for current spiking node
-        node_collection = self.netpyne_instance.createNodeCollection(brain_region, pop_label, model, size, params=params)
+        node_collection = self.netpyne_instance.createNodeCollection(brain_region, label, model, size, params=params)
 
-        # TODO: need to do this in way described in build_and_connect_devices.. For now:
-        if pop_label == 'E': # this test is to avoid creating them twice
-            # populations for artifitial cells representing connections from external nodes
-            self._create_artificial_cells(size, project_to_node=brain_region, project_to_pop=pop_label)
-        return NetpynePopulation(node_collection, self.netpyne_instance, pop_label, model, brain_region)
+        return NetpynePopulation(node_collection, self.netpyne_instance, label, model, brain_region)
         # TODO: needed?
         return NESTPopulation(self.nest_instance.Create(model, n_neurons, params=params),
                               nest_instance=self.nest_instance, label=label, model=model, brain_region=brain_region)
@@ -127,6 +121,13 @@ class NetpyneNetworkBuilder(SpikingNetworkBuilder):
 
     def build_spiking_region_nodes(self, *args, **kwargs):
         super(NetpyneNetworkBuilder, self).build_spiking_region_nodes(*args, **kwargs)
+        # TODO: re-visit once it's clear how to deal with I-projecting input device
+        for connection in self.nodes_connections:
+            target = connection['target'][0]
+            region = self._spiking_brain.nodes[0]
+            for pop in region:
+                if target == pop.pop_label:
+                    self._create_artificial_cells(pop.size, project_to_node=pop.brain_region, project_to_pop=pop.pop_label)
         self.netpyne_instance.createCells()
 
     def build_spiking_network(self):

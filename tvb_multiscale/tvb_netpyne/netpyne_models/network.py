@@ -50,7 +50,6 @@ class NetpyneNetwork(SpikingNetwork):
     def configure(self, *args, **kwargs):
         """Method to configure a simulation just before execution.
         """
-        print("Netpyne:: configure simulation")
         self.netpyne_instance.createAndPrepareNetwork()
 
     def Run(self, simulation_length, *args, **kwargs):

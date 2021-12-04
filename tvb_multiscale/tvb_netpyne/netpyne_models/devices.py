@@ -1,3 +1,4 @@
+import netpyne
 import neuron
 import numpy
 from tvb_multiscale.core.spiking_models.devices import Device, InputDevice, OutputDevice, SpikeRecorder
@@ -7,7 +8,6 @@ class NetpyneDevice(HasTraits):
 
     def __init__(self, device, netpyne_instance, *args, **kwargs):
         self.netpyne_instance = netpyne_instance
-        self.device__ = device # TODO: find out why inherited `device` property didn't work out here
         HasTraits.__init__(self)
     
     def _print_neurons(self):
@@ -58,9 +58,11 @@ class NetpyneDevice(HasTraits):
                    Default = None, corresponds to all nodes.
         """
         if self.model == "poisson_generator":
-            raise NotImplementedError
-        elif self.model == "spike_generator_placeholder":
-            self.device__.applyFiringRate(values_dict, self.label)
+            rate = values_dict['rates'][0]
+            dt = values_dict['dt']
+            self.netpyne_instance.applyFiringRate(rate, self.label, dt)
+        else:
+            raise NotImplementedError('Input device for model {} not implemented'.format(self.model))
 
     def _Get(self, attr=None, nodes=None):
         """Method to get attributes of the SpikingNodeCollection's nodes.
@@ -130,11 +132,11 @@ class NetpyneInputDevice(NetpyneDevice, InputDevice):
 class NetpyneSpikeGenerator(NetpyneInputDevice):
 
     def __init__(self, device, netpyne_instance, *args, **kwargs):
-        kwargs["model"] = kwargs.pop("model", "spike_generator_placeholder")
+        kwargs["model"] = kwargs.pop("model", "poisson_generator")
         super(NetpyneSpikeGenerator, self).__init__(device, netpyne_instance, *args, **kwargs)
 
 NetpyneSpikeInputDeviceDict = {
-                            "spike_generator_placeholder": NetpyneSpikeGenerator
+                            "poisson_generator": NetpyneSpikeGenerator
                             }
 NetpyneCurrentInputDeviceDict = {} # TODO: to be populated
 
@@ -171,7 +173,8 @@ class NetpyneSpikeRecorder(NetpyneOutputDevice, SpikeRecorder):
     
     @property
     def events(self):
-        return [] # TODO: never called, with 'rate' mode at least
+        spktimes, spkgids = self.netpyne_instance.allSpikes(self.neurons)
+        return {'senders': spkgids, 'times': spktimes} # TODO: called when computing analytics
 
     @property
     def number_of_events(self):

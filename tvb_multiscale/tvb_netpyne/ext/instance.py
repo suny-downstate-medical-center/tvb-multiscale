@@ -1,8 +1,9 @@
 from random import randint, uniform
-from ANNarchy.core.Simulate import simulate
+# from ANNarchy.core.Simulate import simulate
 import netpyne
 import numpy as np
 from numpy.core.fromnumeric import shape
+from numpy.lib.utils import source
 from tvb_multiscale.tvb_netpyne.ext.NodeCollection import NodeCollection
 
 from netpyne import specs, sim
@@ -22,7 +23,7 @@ class NetpyneInstance(object):
         self.netParams.cellParams['PYR'] = cellParams
 
         # using VecStim model from NEURON for artificial cells serving as stimuli
-        self.netParams.cellParams['art_VecStim'] = {'cellModel': 'VecStim'}
+        self.netParams.cellParams['art_NetStim'] = {'cellModel': 'DynamicNetStim'}
 
         ## Synaptic mechanism parameters
         self.netParams.synMechParams['exc'] = {
@@ -40,14 +41,14 @@ class NetpyneInstance(object):
         # Simulation options
         simConfig = specs.SimConfig()
 
-        simConfig.duration = 38 # ms # TODO: should be same as TVB duration
+        simConfig.duration = 398 # ms # TODO: should be same as TVB duration
         simConfig.dt = self.dt()
         # simConfig.verbose = True
 
         # simConfig.recordCells = ['uE']
 
         simConfig.recordTraces = {'V_soma':{'sec':'soma','loc':0.5,'var':'v'}}  # Dict with traces to record
-        simConfig.analysis['plotTraces'] = {'include': [0], 'saveFig': True}
+        simConfig.analysis['plotTraces'] =  {'include': [('parahippocampal_L.E', [0]), ('parahippocampal_L.I', [0])], 'saveFig': True}
         simConfig.recordStep = 0.05          # Step size in ms to save data (eg. V traces, LFP, etc)
         simConfig.savePickle = False        # Save params, network and sim output to pickle file
         simConfig.saveJson = False
@@ -80,14 +81,11 @@ class NetpyneInstance(object):
 
         sim.setNetParams(self.netParams)
 
-        sim.net.connectCells()                # create connections between cells based on params
-        sim.net.addStims()                    # add external stimulation to cells (IClamps etc)
-        sim.net.addRxD()                    # add reaction-diffusion (RxD)
-        sim.setupRecording()  
+        sim.net.connectCells()
+        sim.net.addStims()
+        sim.net.addRxD()
+        sim.setupRecording()
 
-        # def intfun(time):
-        #     print(f"INTFUN {time}")
-        #     print(np.array(sim.simData['spkt']))
         prepareContinuousRun()
 
     def createExternalConnection(self, sourcePop, targetPop, weight, delay):
@@ -97,11 +95,10 @@ class NetpyneInstance(object):
 
         # first create artificial cells serving as stimulus, one per each target cell
         
-        # TODO: would be great to bring it back to work
+        # TODO: would be great to bring it back to work:
         # number = self.netParams.popParams[targetPop]['numCells']
         # self.createArtificialCells(sourcePop, number)
 
-        # then connect them with target
         connLabel = sourcePop + '->' + targetPop
         self.netParams.connParams[connLabel] = {
             'preConds': {'pop': sourcePop},
@@ -117,28 +114,30 @@ class NetpyneInstance(object):
         self.netParams.connParams[label] = {
             'preConds': {'pop': sourcePopulation},       # conditions of presyn cells
             'postConds': {'pop': targetPopulation},      # conditions of postsyn cells
-            'convergence': 1, # TODO: will get value from conn_spec (rule=all_to_all, allow_autapses, allow multapses etc.)
+            'probability': 0.1, # TODO: will get value from conn_spec (rule=all_to_all, allow_autapses, allow multapses etc.)
             'weight': weight,
             'delay': delay,
             'synMech': synapticMechanism }
 
-    def createNodeCollection(self, nodeLabel, popLabel, cellModel, number, params):
-        label = nodeLabel + "." + popLabel
-        print(f"Netpyne:: Creating population '{label}' of {number} neurons of type '{cellModel}'.")
-        self.spikingPopulationLabels.append(label)
-        self.netParams.popParams[label] = {'cellType': cellModel, 'numCells': number}
-        return NodeCollection(label, number)
+    def createNodeCollection(self, brainRegion, popLabel, cellModel, size, params=None):
+        collection = NodeCollection(brainRegion, popLabel, size)
+        print(f"Netpyne:: Creating population '{collection.label}' of {size} neurons of type '{cellModel}'.")
+        self.spikingPopulationLabels.append(collection.label)
 
-    from random import randint
-    def createArtificialCells(self, label, number, params=None):
-        rate = randint(20, 120)
-        print(f"Netpyne:: Creating artif cells for node '{label}' of {number} neurons. Rate {rate}")
+        self.netParams.popParams[collection.label] = {'cellType': cellModel, 'numCells': size}
+        return collection
+
+    from sys import float_info
+    def createArtificialCells(self, label, number, interval=float_info.max, params=None):
+        print(f"Netpyne:: Creating artif cells for node '{label}' of {number} neurons")
         self.netParams.popParams[label] = {
-            'cellType': 'art_VecStim',
+            'cellType': 'art_NetStim',
             'numCells': number,
             # 'spkTimes': [0]
-            'rate': rate,
-            'noise': 0.85
+            'interval': interval,
+            'start': 0,
+            'number': 2,
+            'noise': 0.0
         }
 
     def createDevice(self, model, params):
@@ -157,6 +156,37 @@ class NetpyneInstance(object):
         spkgids = spkgids[inds]
 
         return spktvec, spkgids
+
+    def allSpikes(self, cellGids):
+        spktimes = np.array(sim.simData['spkt'])
+        spkgids = np.array(sim.simData['spkid'])
+
+        inPop = np.isin(spkgids, cellGids)
+
+        spktimes = spktimes[inPop]
+        spkgids = spkgids[inPop]
+        return spktimes, spkgids
+
+    #rate = list(values_dict.values())[0]
+    def applyFiringRate(self, rate, sourcePop, dt):        
+
+        stimulusCellGids = sim.net.pops[sourcePop].cellGids
+
+        # the input rate is scaled by number of neurons in stimulated population. decreasing it back:
+        # TODO.tvb: is this expected?
+        rate /= len(stimulusCellGids)
+
+        # TODO.TVB: some crazy values of rate are conveyed in the beginning of simulation. Is this expected?
+        # if rate > 400:
+        #     # For now - scale them down
+        #     rate = rate / 2.0
+
+        # print(f"Netpyne:: apply firing rate {rate}: {sourcePop}")
+
+        spikesPerNeuron = generateSpikesForPopulation(len(stimulusCellGids), rate, dt)
+        for index, spikes in spikesPerNeuron:
+            cell = sim.net.cells[stimulusCellGids[index]]
+            cell.hPointp.spike_now()
     
     def cellGidsForPop(self, popLabel):
         return sim.net.pops[popLabel].cellGids
@@ -171,45 +201,7 @@ class NetpyneInstance(object):
         return gids
 
     def run(self, length):
-
         runForInterval(length)
-
-        # TODO: to tun traditional runSimWithIntervalFunc in other thread (probably won't be used)
-        # if self.started:
-        #     print("Netpyne:: run next chunk")
-        # else:
-        #     print("Netpyne:: will start")
-
-        # self.started = True
-
-        # sim.prepareContinuousRun()
-
-        # def runBgSimulation(interval_length, condition):
-        #     tvbToNetpyneDtRatio = 0.1 # TODO: de-hardcode this ratio
-        #     self.simConfig.duration = interval_length * 12345 # # Duration of the simulation, in ms
-        #     self.simConfig.dt = interval_length * tvbToNetpyneDtRatio
-
-        #     def intervalFun(time):
-        #         condition.acquire()
-        #         print(f"Hello! {time}")
-        #         condition.notifyAll()
-        #         condition.release()
-            
-        #     sim.runSimWithIntervalFunc(100, intervalFun)
-        #     self.started = False
-
-
-        # from threading import Thread, Condition
-        # cond = Condition()
-        # cond.acquire()
-        # thread = Thread(target=runBgSimulation, name="netpyne_bg_simulation", args=(length, cond,))
-        # thread.start()
-        # cond.wait()
-        # cond.release()
-        
-        # # sim.runSim()
-        # # data = sim.gatherData()
-        # print("Netpyne:: done")
 
 from neuron import h
 class NetpyneProxyDevice(object):
@@ -222,34 +214,13 @@ class NetpyneProxyDevice(object):
     def __init__(self, netpyne_instance):
         self.netpyne_instance = netpyne_instance
 
-    def applyFiringRate(self, values_dict, sourcePop):
-
-        rate = list(values_dict.values())[0]
-
-        # print(f"Netpyne:: apply firing rate {rate}: {sourcePop}")
-
-        stimulusCellGids = sim.net.pops[sourcePop].cellGids
-
-         # TODO: make sure that rate should be divided by neurons number
-        rate /= len(stimulusCellGids)
-
-        spikesPerNeuron =  generateSpikesForPopulation(len(stimulusCellGids), rate, 0.1) # TODO: de-hardcode dt
-        for index, spikes in spikesPerNeuron:
-            spikes = spikes + h.t
-
-            cell = sim.net.cells[stimulusCellGids[index]]
-            vec = h.Vector()
-            # print(f"Netpyne:: set {spikes} spikes at rate {rate} to {stimulusPopLable} (while t is {h.t})")
-            cell.hPointp.play(vec.from_python(spikes))
-
     def numberOfSpikes(self, popLabel):
-
+        # TODO: not getting called. is this expected?
         # use only node (proper one), exclude artif cells' spikes
         cellGids = sim.net.pops[popLabel].cellGids
 
         t = h.t
         timewind = 0.1
-        print(f"Netpyne:: will give data back. {popLabel} -- {t} -- {timewind}")
 
         spktvec = np.array(sim.simData['spkt'])
         spkgids = np.array(sim.simData['spkid'])
@@ -262,7 +233,6 @@ class NetpyneProxyDevice(object):
         spkgids = spkgids[inds]
 
         num = len(spktvec)
-        print(f"spikes nums >> {num}")
         return num
 
 # TODO: copy-pasted from internals of runSimWithIntervalFunc

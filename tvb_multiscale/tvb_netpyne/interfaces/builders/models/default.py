@@ -48,12 +48,9 @@ class DefaultInterfaceBuilder(TVBNetpyneInterfaceBuilder):
         # For spike transmission from TVB to NetPyNE devices as TVB proxy nodes with TVB delays:
         # Options:
         # "model": "poisson_generator", "params": {"allow_offgrid_times": False}
-        # For spike trains with correlation probability p_copy set:
-        # "model": "mip_generator", "params": {"p_copy": 0.5, "mother_seed": 0}
-        # TODO: above - proper model names (e.g. proper for spike_generator_placeholder instead of inhomogeneous_poisson_generator)
 
         interface = \
-            {"model": "spike_generator_placeholder",
+            {"model": "poisson_generator",
              "params": {"allow_offgrid_times": False},
         # -------Properties potentially set as function handles with args (tvb_node_id=None, netpyne_node_id=None)---------
               "interface_weights": 1.0*self.N_E,
@@ -141,6 +138,7 @@ class DefaultInterfaceBuilder(TVBNetpyneInterfaceBuilder):
     def default_build(self, tvb_to_netpyne_mode="rate", netpyne_to_tvb=True):
         if tvb_to_netpyne_mode and \
                 (self.tvb_to_spikeNet_interfaces is None or len(self.tvb_to_spikeNet_interfaces) == 0):
+            # TODO: condition never met. Should it?
             self.tvb_to_spikeNet_interfaces = []
             if tvb_to_netpyne_mode.lower() == "rate":
                 # For spike transmission from TVB to NetPyNE devices as TVB proxy nodes with TVB delays:
@@ -162,7 +160,10 @@ class DefaultInterfaceBuilder(TVBNetpyneInterfaceBuilder):
         self.default_build(tvb_to_spikeNet_mode, spikeNet_to_tvb)
         if not isinstance(tvb_spikeNet_interface, TVBNetpyneInterface):
             tvb_spikeNet_interface = self._tvb_netpyne_interface()
-        return super(DefaultInterfaceBuilder, self).build_interface(tvb_spikeNet_interface)
+        super(DefaultInterfaceBuilder, self).build_interface(tvb_spikeNet_interface)
+        for spike_to_tvb in tvb_spikeNet_interface.spikeNet_to_tvb_interfaces:
+            spike_to_tvb.tvb_dt = tvb_spikeNet_interface.dt
+        return tvb_spikeNet_interface
 
 
 class DefaultMultiSynapseInterfaceBuilder(DefaultInterfaceBuilder):

@@ -12,6 +12,6 @@ class NetpyneToTVBInterfaceBuilder(SpikeNetToTVBInterfaceBuilder):
     def netpyne_instance(self):
         return self.spiking_network.netpyne_instance
 
-    def build_and_connect_devices(self, devices, nodes, *args, **kwargs):
+    def build_and_connect_devices(self, devices, nodes):
         return build_and_connect_devices(devices, create_device, connect_device,
-                                         nodes, self.config, netpyne_instance=self.netpyne_instance)
+                                         nodes, self.config, devices=self.spiking_network.output_proxies, netpyne_instance=self.netpyne_instance)

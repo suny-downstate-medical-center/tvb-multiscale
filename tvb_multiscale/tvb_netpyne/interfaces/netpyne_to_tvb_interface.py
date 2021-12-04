@@ -18,9 +18,8 @@ class NetpyneToTVBInterface(SpikeNetToTVBinterface):
     @property
     def population_mean_spikes_number(self):
         
-        dt = 0.1 # TODO: de-hardcode time step
         values = []
-        spktimes, spkids = self.netpyne_instance.latestSpikes(dt)
+        spktimes, spkids = self.netpyne_instance.latestSpikes(self.tvb_dt)
 
         if len(spktimes) == 0:
             return np.zeros((len(self.nodes_ids),))
@@ -32,7 +31,7 @@ class NetpyneToTVBInterface(SpikeNetToTVBinterface):
             numSpikes = len(spkids[inNode])
             if numSpikes > 0:
                 num = numSpikes / self[node].number_of_neurons
-                print(f"Netpyne:: recorded {num} spikes per neuron from {device.label}. Approx rate =  {num * 1000 / dt}")
+                print(f"Netpyne:: recorded {num} spikes per neuron from {device.label}. Approx rate =  {num * 1000 / self.tvb_dt}")
                 values.append(num)
             else:
                 values.append(0.0)
@@ -53,6 +52,7 @@ class NetpyneToTVBInterface(SpikeNetToTVBinterface):
 
     @property
     def current_population_mean_values(self):
+        # TODO: used only with multimeter and voltmeter
         values = []
         for i_node, (node, n_events) in enumerate(zip(self.devices(), self.number_of_events)):
             number_of_events = self[node].number_of_events

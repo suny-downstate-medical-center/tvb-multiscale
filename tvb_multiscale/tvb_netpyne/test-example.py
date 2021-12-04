@@ -111,7 +111,7 @@ number_of_regions = simulator.connectivity.region_labels.shape[0]
 spiking_nodes_ids = []  # the indices of fine scale regions modeled with NetPyNE
 # We model parahippocampal cortices (left and right) with NetPyNE
 for id in range(number_of_regions):
-    if simulator.connectivity.region_labels[id].find("hippo") > 0:
+    if simulator.connectivity.region_labels[id].find("hippo") >= 0:
         spiking_nodes_ids.append(id)
 
 # originally - WWDeco2014Builder        
@@ -220,8 +220,13 @@ synapse_model_I = "inh"
 conn_spec = {"allow_autapses": True, 'allow_multapses': True, 'rule': "all_to_all",
              "indegree": None, "outdegree": None, "N": None, "p": 0.1}
 
-w_E = 0.1 # {"distribution": "normal", "mu": 1.0, "sigma": 0.1}
-w_I = 0.1 # {"distribution": "normal", "mu": -1.0, "sigma": 0.1}
+# TODO: which values should go here?
+w_E_E_prox = 0.1 # {"distribution": "normal", "mu": 1.0, "sigma": 0.1}
+w_E_E_dist = 0.1
+w_E_I_prox = 0.1 # {"distribution": "normal", "mu": -1.0, "sigma": 0.1}
+w_E_I_dist = 0.1
+w_I_E = 0.1
+w_I_I = 0.1
 
 within_node_delay = netpyne_model_builder.default_min_delay
 #                     {"distribution": "uniform", 
@@ -230,23 +235,24 @@ within_node_delay = netpyne_model_builder.default_min_delay
 #                      "high": np.maximum(netpyne_model_builder.tvb_dt, 
 #                                         2*netpyne_model_builder.default_populations_connection["delay"])}
 
+# connections between populations within same spiking region
 netpyne_model_builder.populations_connections = [
      #              ->
     {"source": "E", "target": "E",  # E -> E This is a self-connection for population "E"
      "synapse_model": synapse_model_E, "conn_spec": conn_spec,
-     "weight": w_E, "delay": within_node_delay,
+     "weight": w_E_E_prox, "delay": within_node_delay,
      "receptor_type": 0, "nodes": None},  # None means apply to all
     {"source": "E", "target": "I",  # E -> I
      "synapse_model": synapse_model_E, "conn_spec": conn_spec,
-     "weight": w_E, "delay": within_node_delay,
+     "weight": w_E_I_prox, "delay": within_node_delay,
      "receptor_type": 0, "nodes": None},  # None means apply to all
     {"source": "I", "target": "E",  # I -> E
      "synapse_model": synapse_model_I, "conn_spec": conn_spec, 
-     "weight": w_I, "delay": within_node_delay,
+     "weight": w_I_E, "delay": within_node_delay,
      "receptor_type": 0, "nodes": None},  # None means apply to all
     {"source": "I", "target": "I",  # I -> I This is a self-connection for population "I"
      "synapse_model": synapse_model_I, "conn_spec": conn_spec,
-     "weight": w_I, "delay": within_node_delay,
+     "weight": w_I_I, "delay": within_node_delay,
      "receptor_type": 0, "nodes": None}  # None means apply to all
     ]
 
@@ -274,12 +280,13 @@ tvb_delay_fun = lambda source_node, target_node: \
 
 receptor_by_source_region = lambda source_node, target_node: int(source_node + 1)
 
+# connections between populations between different spiking regions
 # Total excitatory spikes of one region node will be distributed to
 netpyne_model_builder.nodes_connections = [
     #              ->
     {"source": "E", "target": ["E"],
      "synapse_model": synapse_model_E, "conn_spec": conn_spec,
-     "weight": w_E, "delay": tvb_delay_fun,  
+     "weight": w_E_E_dist, "delay": tvb_delay_fun,  
     # Each region emits spikes in its own port:
      "receptor_type": receptor_by_source_region,
      "source_nodes": None, "target_nodes": None}  # None means apply to all
@@ -289,7 +296,7 @@ if lamda > 0:
     netpyne_model_builder.nodes_connections.append(
         {"source": "E", "target": ["I"],
          "synapse_model": synapse_model_E, "conn_spec": conn_spec,
-         "weight": w_E, "delay": tvb_delay_fun,  
+         "weight": w_E_I_dist, "delay": tvb_delay_fun,  
         # Each region emits spikes in its own port:
          "receptor_type": receptor_by_source_region,
          "source_nodes": None, "target_nodes": None}  # None means apply to all
@@ -300,14 +307,13 @@ if lamda > 0:
 
 netpyne_model_builder.output_devices = []
 
-# TODO: commented out temporarily for clearer debugging.
-# connections = OrderedDict({})
-# #          label <- target population
-# connections["E_spikes"] = "E"
-# connections["I_spikes"] = "I"
-# netpyne_model_builder.output_devices.append(
-#     {"model": "spike_recorder", "params": {"record_to": "memory"},
-#      "connections": connections, "nodes": None})  # None means apply to all
+connections = OrderedDict({})
+#          label <- target population
+connections["E_spikes"] = "E"
+connections["I_spikes"] = "I"
+netpyne_model_builder.output_devices.append(
+    {"model": "spike_recorder", "params": {"record_to": "memory"},
+     "connections": connections, "nodes": None})  # None means apply to all
 
 # Labels have to be different
 
@@ -407,7 +413,7 @@ if tvb_to_netpyne_mode == "rate":
     receptor_by_source_region = lambda source_node, target_node: int(source_node + 1)
     
     tvb_netpyne_builder.tvb_to_spikeNet_interfaces = [
-        {"model": "spike_generator_placeholder",
+        {"model": "poisson_generator",
          "params": {"allow_offgrid_times": False},
     # # ---------Properties potentially set as function handles with args (tvb_node_id=None)-------------------------
          "interface_weights": 1.0 * N_E, # Convert mean value to total value
@@ -422,7 +428,7 @@ if tvb_to_netpyne_mode == "rate":
 
     if lamda > 0.0:
         tvb_netpyne_builder.tvb_to_spikeNet_interfaces.append(
-            {"model": "spike_generator_placeholder",
+            {"model": "poisson_generator",
              "params": {"allow_offgrid_times": False},
         # # ---------Properties potentially set as function handles with args (tvb_node_id=None)-------------------------
              "interface_weights": 1.0 * N_E, # Convert mean value to total value
@@ -642,6 +648,258 @@ source_ts_spiking.plot_timeseries(plotter_config=plotter.config,
                                hue="Region" if source_ts_spiking.shape[2] > MAX_REGIONS_IN_ROWS else None, 
                                per_variable=source_ts_spiking.shape[1] > MAX_VARS_IN_COLS, 
                                figsize=FIGSIZE, figname="Spiking nodes TVB Time Series");
+
+# Focus on the nodes modelled in NetPyNE: raster plot
+if source_ts_spiking.number_of_labels > MIN_REGIONS_FOR_RASTER_PLOT:
+    source_ts_spiking.plot_raster(plotter_config=plotter.config, 
+                               per_variable=source_ts_spiking.shape[1] > MAX_VARS_IN_COLS,
+                               figsize=FIGSIZE, figname="Spiking nodes TVB Time Series Raster");
+
+### Spiking Network plots
+
+from tvb_multiscale.core.data_analysis.spiking_network_analyser import SpikingNetworkAnalyser
+# Create a SpikingNetworkAnalyzer:
+spikeNet_analyzer = \
+    SpikingNetworkAnalyser(spikeNet=netpyne_network,
+                           start_time=source_ts.time[0], end_time=source_ts.time[-1], 
+                           period=simulator.monitors[0].period, transient=transient,
+                           time_series_output_type="TVB", return_data=True, 
+                           force_homogeneous_results=True, connectivity=simulator.connectivity)
+
+### Plot spikes' raster and mean spike rates and correlations
+
+# Spikes rates and correlations per Population and Region
+spikes_res = \
+    spikeNet_analyzer.\
+        compute_spikeNet_spikes_rates_and_correlations(
+            populations_devices=None, regions=None,
+            rates_methods=[], rates_kwargs=[{}], rate_results_names=[],
+            corrs_methods=[], corrs_kwargs=[{}], corrs_results_names=[], bin_kwargs={},
+            data_method=spikeNet_analyzer.get_spikes_from_device, data_kwargs={},
+            return_devices=False
+        );
+
+if spikes_res:
+    print(spikes_res["mean_rate"])
+    print(spikes_res["spikes_correlation_coefficient"])
+    # Plot spikes' rasters together with mean population's spikes' rates' time series
+    if plotter:
+        plotter.plot_spike_events(spikes_res["spikes"], rates=spikes_res["mean_rate_time_series"], figsize=FIGSIZE)
+        from tvb_multiscale.core.plot.correlations_plot import plot_correlations
+        plot_correlations(spikes_res["spikes_correlation_coefficient"], plotter)
+
+if spikes_res:
+    print("Mean spike rates:")
+    for pop in spikes_res["mean_rate"].coords["Population"]:
+        for reg in spikes_res["mean_rate"].coords["Region"]:
+            if not np.isnan(spikes_res["mean_rate"].loc[pop, reg]):
+                print("%s - %s: %g" % (pop.values.item().split("_spikes")[0], reg.values.item(), 
+                                       spikes_res["mean_rate"].loc[pop, reg].values.item()))
+
+    # savemat(os.path.join(config.out.FOLDER_RES, "spikes_mean_rates.mat"), spikes_res["mean_rate"].to_dict())
+
+spikeNet_analyzer.resample = True
+spikes_sync = \
+    spikeNet_analyzer.compute_spikeNet_synchronization(populations_devices=None, regions=None,
+                                                       comp_methods=[spikeNet_analyzer.compute_spikes_sync, 
+                                                                     spikeNet_analyzer.compute_spikes_sync_time_series, 
+                                                                     spikeNet_analyzer.compute_spikes_distance, 
+                                                                     spikeNet_analyzer.compute_spikes_distance_time_series,
+                                                                     spikeNet_analyzer.compute_spikes_isi_distance, 
+                                                                     spikeNet_analyzer.compute_spikes_isi_distance_time_series],
+                                                       computations_kwargs=[{}], data_kwargs={},
+                                                       return_spikes_trains=False, return_devices=False)
+# print(spikes_sync)
+
+if spikes_sync:
+    plotter.config.FONTSIZE = 20 # plotter.config.LARGE_FONTSIZE  # LARGE = 12, default = 10
+    plotter.plot_spike_events(spikes_res["spikes"], 
+                              time_series=spikes_sync["spikes_sync_time_series"], 
+                              mean_results=spikes_sync["spikes_sync"], 
+                              plot_spikes=True, spikes_alpha=0.25,
+                              spikes_markersize=1.0, time_series_marker="*", 
+                              figsize=(50, 7), n_y_ticks=3, n_time_ticks=4, show_time_axis=True,
+                              time_axis_min=0.0, time_axis_max=simulation_length
+                                     )
+
+if spikes_sync:
+    plotter.config.FONTSIZE = 20 # plotter.config.LARGE_FONTSIZE  # LARGE = 12, default = 10
+    plotter.plot_spike_events(spikes_res["spikes"], 
+                              time_series=spikes_sync["spikes_distance_time_series"], 
+                              mean_results=spikes_sync["spikes_distance"], 
+                              plot_spikes=True, spikes_alpha=0.25,
+                              spikes_markersize=1.0, time_series_marker="*", 
+                              figsize=(50, 7), n_time_ticks=4, show_time_axis=True, n_y_ticks=4,
+                              time_axis_min=0.0, time_axis_max=simulation_length
+                                     )
+
+if spikes_sync:
+    plotter.config.FONTSIZE = 20 # plotter.config.LARGE_FONTSIZE  # LARGE = 12, default = 10
+    plotter.plot_spike_events(spikes_res["spikes"], 
+                              time_series=spikes_sync["spikes_isi_distance_time_series"], 
+                              mean_results=spikes_sync["spikes_isi_distance"], 
+                              plot_spikes=True, spikes_alpha=0.25,
+                              spikes_markersize=1.0,  time_series_marker="*", 
+                              figsize=(50, 7), n_y_ticks=3, n_time_ticks=4, show_time_axis=True,
+                              time_axis_min=0.0, time_axis_max=simulation_length
+                                     )
+
+if spikes_sync:
+    print("Spike synchronization:")
+    for pop in spikes_sync["spikes_sync"].coords["Population"]:
+        for reg in spikes_sync["spikes_sync"].coords["Region"]:
+            if not np.isnan(spikes_sync["spikes_sync"].loc[pop, reg]):
+                print("%s - %s: %g" % (pop.values.item().split("_spikes")[0], reg.values.item(), 
+                                       spikes_sync["spikes_sync"].loc[pop, reg].values.item()))
+
+#     savemat(os.path.join(config.out.FOLDER_RES, "spikes_sync.mat"), spikes_sync["spikes_sync"].to_dict())
+#     savemat(os.path.join(config.out.FOLDER_RES, "spikes_sync_time_series.mat"), spikes_sync["spikes_sync_time_series"].to_dict())
+
+if spikes_sync:
+    print("Spike distance:")
+    for pop in spikes_sync["spikes_distance"].coords["Population"]:
+        for reg in spikes_sync["spikes_distance"].coords["Region"]:
+            if not np.isnan(spikes_sync["spikes_distance"].loc[pop, reg]):
+                print("%s - %s: %g" % (pop.values.item().split("_spikes")[0], reg.values.item(), 
+                                       spikes_sync["spikes_distance"].loc[pop, reg].values.item()))
+
+#     savemat(os.path.join(config.out.FOLDER_RES, "spikes_distance.mat"), spikes_sync["spikes_distance"].to_dict())
+#     savemat(os.path.join(config.out.FOLDER_RES, "spikes_distance_time_series.mat"), spikes_sync["spikes_distance_time_series"].to_dict())
+
+if spikes_sync:
+    print("Spike ISI distance:")
+    for pop in spikes_sync["spikes_isi_distance"].coords["Population"]:
+        for reg in spikes_sync["spikes_isi_distance"].coords["Region"]:
+            if not np.isnan(spikes_sync["spikes_isi_distance"].loc[pop, reg]):
+                print("%s - %s: %g" % (pop.values.item().split("_spikes")[0], reg.values.item(), 
+                                       spikes_sync["spikes_isi_distance"].loc[pop, reg].values.item()))
+
+#     savemat(os.path.join(config.out.FOLDER_RES, "spikes_isi_distance.mat"), spikes_sync["spikes_isi_distance"].to_dict())
+#     savemat(os.path.join(config.out.FOLDER_RES, "spikes_isi_distance_time_series.mat"), spikes_sync["spikes_isi_distance_time_series"].to_dict())
+
+if spikes_res and writer:
+    writer.write_object(spikes_res["spikes"].to_dict(), 
+                        path=os.path.join(config.out.FOLDER_RES,  "Spikes") + ".h5");
+    writer.write_object(spikes_res["mean_rate"].to_dict(),
+                        path=os.path.join(config.out.FOLDER_RES,
+                                          spikes_res["mean_rate"].name) + ".h5");
+    writer.write_tvb_to_h5(TimeSeriesRegion().from_xarray_DataArray(
+                              spikes_res["mean_rate_time_series"]._data,
+                               connectivity=spikes_res["mean_rate_time_series"].connectivity),
+                           os.path.join(config.out.FOLDER_RES,
+                                        spikes_res["mean_rate_time_series"].title) + ".h5",
+                           recursive=False);
+    writer.write_object(spikes_res["spikes_correlation_coefficient"].to_dict(),
+                        path=os.path.join(config.out.FOLDER_RES,
+                                          spikes_res["spikes_correlation_coefficient"].name) + ".h5");
+
+### Get SpikingNetwork mean field variable time series and plot them
+
+# Continuous time variables' data of spiking neurons
+if plot_per_neuron:
+    spikeNet_analyzer.return_data = True
+else:
+    spikeNet_analyzer.return_data = False
+spikeNet_ts = \
+    spikeNet_analyzer. \
+         compute_spikeNet_mean_field_time_series(populations_devices=None, regions=None, variables=None,
+                                                 computations_kwargs={}, data_kwargs={}, return_devices=False)
+if spikeNet_ts:
+    if plot_per_neuron:
+        mean_field_ts = spikeNet_ts["mean_field_time_series"]  # mean field
+        spikeNet_ts = spikeNet_ts["data_by_neuron"]  # per neuron data
+    else:
+        mean_field_ts = spikeNet_ts
+        spikeNet_ts = None
+    if mean_field_ts and mean_field_ts.size > 0:
+        # Compute total sum of external synapses time series:
+        mean_field_ext_mean = mean_field_ts[:, :3]
+        for ilbl, lbl in enumerate(["spikes_exc_ext_0", "s_AMPA_ext_0", "I_AMPA_ext_0"]):
+            mean_field_ext_mean._data[:, ilbl] = mean_field_ts[:, lbl::3].sum(axis=1)
+        mean_field_ext_mean._data.name = "Total External Synapses' Mean Field Time Series"
+        coords = dict(mean_field_ext_mean.coords)
+        coords["Variable"] = ["spikes_exc_ext_tot", "s_AMPA_ext_tot", "I_AMPA_ext_tot"]
+        mean_field_ext_mean._data = mean_field_ext_mean._data.assign_coords(coords)
+        # Plot main and internal synapses' time series:
+        mean_field_ts[:, :"I_GABA"].plot_timeseries(plotter_config=plotter.config, 
+                                                    per_variable=mean_field_ts.shape[1] > MAX_VARS_IN_COLS)
+        # Plot time series of spiking_nodes_ids nodes' external synapses:
+        for ind in netpyne_model_builder.spiking_nodes_inds:
+            labels = ["spikes_exc_ext_%d" % ind, "s_AMPA_ext_%d" % ind, "I_AMPA_ext_%d" % ind]
+            mean_field_ts[:, labels].plot_timeseries(plotter_config=plotter.config, 
+                                                     per_variable=mean_field_ts.shape[1] > MAX_VARS_IN_COLS)
+        # Plot total sum of external synapses' times series
+        mean_field_ext_mean.plot_timeseries(plotter_config=plotter.config, 
+                                            per_variable=mean_field_ts.shape[1] > MAX_VARS_IN_COLS)
+        if mean_field_ts.number_of_labels > MIN_REGIONS_FOR_RASTER_PLOT:
+            mean_field_ts[:, :"I_GABA"].plot_raster(plotter_config=plotter.config, 
+                                                    per_variable=mean_field_ts.shape[1] > MAX_VARS_IN_COLS,
+                                                    linestyle="--", alpha=0.5, linewidth=0.5)
+            for ind in netpyne_model_builder.spiking_nodes_inds:
+                labels = ["spikes_exc_ext_%d" % ind, "s_AMPA_ext_%d" % ind, "I_AMPA_ext_%d" % ind]
+                mean_field_ts[:, labels].plot_raster(plotter_config=plotter.config, 
+                                                     per_variable=mean_field_ts.shape[1] > MAX_VARS_IN_COLS,
+                                                     linestyle="--", alpha=0.5, linewidth=0.5)
+            mean_field_ext_mean.plot_raster(plotter_config=plotter.config, 
+                                            per_variable=mean_field_ts.shape[1] > MAX_VARS_IN_COLS,
+                                            linestyle="--", alpha=0.5, linewidth=0.5)
+        del mean_field_ext_mean
+                    
+else:
+    mean_field_ts = None
+
+# Write results to file:
+if mean_field_ts and writer:
+    writer.write_tvb_to_h5(TimeSeriesRegion().from_xarray_DataArray(
+                                       mean_field_ts._data,
+                                       connectivity=mean_field_ts.connectivity),
+                           os.path.join(config.out.FOLDER_RES, mean_field_ts.title) + ".h5", 
+                           recursive=False)
+
+# Compute per neuron spikes' rates times series and plot them
+if spikes_res and plot_per_neuron:
+    from tvb.simulator.plot.base_plotter import pyplot
+    spikeNet_analyzer.return_data = False
+    rates_ts_per_neuron = \
+        spikeNet_analyzer. \
+            compute_spikeNet_rates_time_series(populations_devices=None, regions=None,
+                                               computations_kwargs={}, data_kwargs={},
+                                               return_spikes_trains=False, return_devices=False);
+    if rates_ts_per_neuron is not None and rates_ts_per_neuron.size:
+        # Regions in rows
+        row = rates_ts_per_neuron.dims[2] if rates_ts_per_neuron.shape[2] > 1 else None
+        if row is None:
+            # Populations in rows
+            row = rates_ts_per_neuron.dims[1] if rates_ts_per_neuron.shape[1] > 1 else None
+            col = None
+        else:
+            # Populations in columns
+            col = rates_ts_per_neuron.dims[1] if rates_ts_per_neuron.shape[1] > 1 else None
+        pyplot.figure()
+        rates_ts_per_neuron.plot(y=rates_ts_per_neuron.dims[3], row=row, col=col, cmap="jet")
+        plotter.base._save_figure(figure_name="Spike rates per neuron")
+        # del rates_ts_per_neuron # to free memory
+
+### Plot per neuron SpikingNetwork time series
+
+# Regions in rows
+if spikeNet_ts is not None and spikeNet_ts.size:
+    row = spikeNet_ts.dims[2] if spikeNet_ts.shape[2] > 1 else None
+    if row is None:
+        # Populations in rows
+        row = spikeNet_ts.dims[3] if spikeNet_ts.shape[3] > 1 else None
+        col = None
+    else:
+        # Populations in cols
+         col = spikeNet_ts.dims[3] if spikeNet_ts.shape[3] > 1 else None
+    for var in spikeNet_ts.coords[spikeNet_ts.dims[1]]:
+        this_var_ts = spikeNet_ts.loc[:, var, :, :, :]
+        this_var_ts.name = var.item()
+        pyplot.figure()
+        this_var_ts.plot(y=spikeNet_ts.dims[4], row=row, col=col, cmap="jet", figsize=FIGSIZE)
+        plotter.base._save_figure(
+            figure_name="Spiking Network variables' time series per neuron: %s" % this_var_ts.name)
+    del spikeNet_ts # to free memory
 
 
 
