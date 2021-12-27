@@ -19,6 +19,8 @@ class DefaultInterfaceBuilder(TVBNetpyneInterfaceBuilder):
 
         super(DefaultInterfaceBuilder, self).__init__(tvb_simulator, netpyne_network, netpyne_nodes_ids, exclusive_nodes,
                                                       tvb_to_netpyne_interfaces, netpyne_to_tvb_interfaces)
+        
+        # TODO: not sure it has to be hardcoded this way. At least, default value [100, 100] may be delusive
         self.N_E = populations_sizes[0]
         self.N_I = populations_sizes[1]
 
@@ -138,7 +140,7 @@ class DefaultInterfaceBuilder(TVBNetpyneInterfaceBuilder):
     def default_build(self, tvb_to_netpyne_mode="rate", netpyne_to_tvb=True):
         if tvb_to_netpyne_mode and \
                 (self.tvb_to_spikeNet_interfaces is None or len(self.tvb_to_spikeNet_interfaces) == 0):
-            # TODO: condition never met. Should it?
+            # TODO: condition never met. Should it? Also, revise most of methods in this class, are they needed?
             self.tvb_to_spikeNet_interfaces = []
             if tvb_to_netpyne_mode.lower() == "rate":
                 # For spike transmission from TVB to NetPyNE devices as TVB proxy nodes with TVB delays:
@@ -161,8 +163,25 @@ class DefaultInterfaceBuilder(TVBNetpyneInterfaceBuilder):
         if not isinstance(tvb_spikeNet_interface, TVBNetpyneInterface):
             tvb_spikeNet_interface = self._tvb_netpyne_interface()
         super(DefaultInterfaceBuilder, self).build_interface(tvb_spikeNet_interface)
+
+        # for interface in self.tvb_to_spikeNet_interfaces:
+        #     weightss = interface["interface_weights"]
+            # print(f"wghtss {weightss}")
+        total_scale = None
+        for tvb_to_spike in tvb_spikeNet_interface.tvb_to_spikeNet_interfaces:
+            if total_scale is None:
+                total_scale = tvb_to_spike.scale
+            else:
+                total_scale += tvb_to_spike.scale
+
         for spike_to_tvb in tvb_spikeNet_interface.spikeNet_to_tvb_interfaces:
-            spike_to_tvb.tvb_dt = tvb_spikeNet_interface.dt
+            spike_to_tvb.tvb_dt = tvb_spikeNet_interface.dt # TODO: might not be needed, if we pass dt to NetpyneInstance
+        for tvb_to_spike in tvb_spikeNet_interface.tvb_to_spikeNet_interfaces:
+            tvb_to_spike.total_scale = total_scale
+
+            # TODO: investigate the exception when trying to print weights here
+            # print(tvb_to_spike.weights)
+
         return tvb_spikeNet_interface
 
 

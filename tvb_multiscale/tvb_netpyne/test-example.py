@@ -9,12 +9,18 @@ TvbProfile.set_profile(TvbProfile.LIBRARY_PROFILE)
 
 from tvb_multiscale.tvb_netpyne.config import *
 
+# TODO: which values should go here?
+w_E_E_prox = 0.0
+w_E_I_prox = 0.01
+w_I_E = 0.01
+w_I_I = 0.0045
+
 work_path = os.getcwd()
 data_path = os.path.join(work_path.split("tvb_netpyne")[0], "data")
-outputs_path = os.path.join(work_path, "netpyne-outputs/RedWongWang")
+outputs_path = os.path.join(work_path, "netpyne-outputs/RWW-coupled-EE-II-0.0075-EI-0.01-IE-0.04")
 config = Config(output_base=outputs_path)
 
-config.figures.SHOW_FLAG = True 
+config.figures.SHOW_FLAG = True
 config.figures.SAVE_FLAG = True
 config.figures.FIG_FORMAT = 'png'
 config.figures.DEFAULT_SIZE= config.figures.NOTEBOOK_SIZE
@@ -70,7 +76,7 @@ connectivity.configure()
 simulator = CoSimulator()
 simulator.model = ReducedWongWangExcIOInhI()
 simulator.model.G = np.array([2.0, ])     # Global cloupling scaling
-simulator.model.lamda = np.array([0.0, ]) # Feedforward inhibition
+simulator.model.lamda = np.array([0.2, ]) # Feedforward inhibition
 simulator.model.w_p = np.array([1.4, ])   # Feedback excitation
 simulator.model.J_i = np.array([1.0, ])   # Feedback inhibition
 
@@ -111,22 +117,22 @@ number_of_regions = simulator.connectivity.region_labels.shape[0]
 spiking_nodes_ids = []  # the indices of fine scale regions modeled with NetPyNE
 # We model parahippocampal cortices (left and right) with NetPyNE
 for id in range(number_of_regions):
-    if simulator.connectivity.region_labels[id].find("hippo") >= 0:
+    if simulator.connectivity.region_labels[id].find("hippocampal_L") >= 0:
         spiking_nodes_ids.append(id)
 
 # originally - WWDeco2014Builder        
 from tvb_multiscale.tvb_netpyne.netpyne_models.builders.models.default_exc_io_inh_i import DefaultExcIOInhIBuilder
 
 # Build a NetPyNE network model with the corresponding builder
-netpyne_model_builder = DefaultExcIOInhIBuilder(simulator, spiking_nodes_ids, config=config)
-netpyne_model_builder.configure()
+netpyne_network_builder = DefaultExcIOInhIBuilder(simulator, spiking_nodes_ids, config=config)
+netpyne_network_builder.configure()
 
-N_E = int(netpyne_model_builder.population_order * netpyne_model_builder.scale_e)
-N_I = int(netpyne_model_builder.population_order * netpyne_model_builder.scale_i)
+# N_E = int(netpyne_model_builder.population_order * netpyne_model_builder.scale_e)
+# N_I = int(netpyne_model_builder.population_order * netpyne_model_builder.scale_i)
 
 
 # # Using all default parameters for this example
-netpyne_model_builder.set_defaults()
+netpyne_network_builder.set_defaults()
 
 # or...
 
@@ -135,20 +141,21 @@ netpyne_model_builder.set_defaults()
 # ----------------------------------------------------------------------------------------------------------------
 from copy import deepcopy
 
-population_neuron_model = "PYR"  # the NetPyNE spiking neuron model # TODO: use same is internally
+population_neuron_model = "PYR"  # the NetPyNE spiking neuron model # TODO: use same as internally
 
-netpyne_model_builder.population_order = 100
+netpyne_network_builder.population_order = 100
 
-netpyne_model_builder.scale_e = 1.6
-netpyne_model_builder.scale_i = 0.4
+netpyne_network_builder.scale_e = 1.3
+netpyne_network_builder.scale_i = 0.6
 
-N_E = int(netpyne_model_builder.population_order * netpyne_model_builder.scale_e)
-N_I = int(netpyne_model_builder.population_order * netpyne_model_builder.scale_i)
+N_E = int(netpyne_network_builder.population_order * netpyne_network_builder.scale_e)
+N_I = int(netpyne_network_builder.population_order * netpyne_network_builder.scale_i)
 
-netpyne_model_builder.global_coupling_scaling = \
-    netpyne_model_builder.tvb_serial_sim["coupling.a"][0].item() * \
-    netpyne_model_builder.tvb_serial_sim["model.G"][0].item()
-netpyne_model_builder.lamda = netpyne_model_builder.tvb_serial_sim["model.lamda"][0].item()
+# TODO: here and below: check if global_coupling_scaling is used properly and not redundantly (both for netpyne_model_builder and tvb_netpyne_builder)
+netpyne_network_builder.global_coupling_scaling = \
+    netpyne_network_builder.tvb_serial_sim["coupling.a"][0].item() * \
+    netpyne_network_builder.tvb_serial_sim["model.G"][0].item()
+netpyne_network_builder.lamda = netpyne_network_builder.tvb_serial_sim["model.lamda"][0].item()
 
 
 # When any of the properties model, params and scale below depends on regions,
@@ -157,7 +164,7 @@ netpyne_model_builder.lamda = netpyne_model_builder.tvb_serial_sim["model.lamda"
 
 def param_fun(node_index, params, weight):
     w_E_ext = \
-        weight * netpyne_model_builder.tvb_weights[:, node_index]
+        weight * netpyne_network_builder.tvb_weights[:, node_index]
     w_E_ext[node_index] = 1.0  # this is external input weight to this node
     out_params = deepcopy(params)
     out_params.update({"w_E_ext": w_E_ext})
@@ -167,7 +174,7 @@ def param_fun(node_index, params, weight):
 common_params = {
     "V_th": -50.0, "V_reset": -55.0, "E_L": -70.0, "E_ex": 0.0, "E_in": -70.0,                       # mV
     "tau_decay_AMPA": 2.0, "tau_decay_GABA_A": 10.0, "tau_decay_NMDA": 100.0, "tau_rise_NMDA": 2.0,  # ms
-    "s_AMPA_ext_max": N_E * np.ones((netpyne_model_builder.number_of_regions,)).astype("f"), 
+    "s_AMPA_ext_max": N_E * np.ones((netpyne_network_builder.number_of_regions,)).astype("f"), 
     "N_E": N_E, "N_I": N_I, "epsilon": 1.0  # /N_E
 }
 params_E = {
@@ -175,13 +182,13 @@ params_E = {
     "g_L": 25.0,     # nS
     "t_ref": 2.0,    # ms
     "g_AMPA_ext": 3.37, "g_AMPA": 0.065, "g_NMDA": 0.20, "g_GABA_A": 10.94,  # nS
-    "w_E": netpyne_model_builder.tvb_serial_sim["model.w_p"][0].item(), 
-    "w_I": netpyne_model_builder.tvb_serial_sim["model.J_i"][0].item()
+    "w_E": netpyne_network_builder.tvb_serial_sim["model.w_p"][0].item(), 
+    "w_I": netpyne_network_builder.tvb_serial_sim["model.J_i"][0].item()
 }
 params_E.update(common_params)
-netpyne_model_builder.params_E = \
+netpyne_network_builder.params_E = \
     lambda node_index: param_fun(node_index, params_E,
-                                 weight=netpyne_model_builder.global_coupling_scaling)
+                                 weight=netpyne_network_builder.global_coupling_scaling)
 
 params_I = {
     "C_m": 200.0,  # pF
@@ -191,23 +198,23 @@ params_I = {
     "w_E": 1.0, "w_I": 1.0
 }
 params_I.update(common_params)
-netpyne_model_builder.params_I = \
+netpyne_network_builder.params_I = \
     lambda node_index: param_fun(node_index, params_I,
-                                 weight=netpyne_model_builder.lamda * netpyne_model_builder.global_coupling_scaling)
+                                 weight=netpyne_network_builder.lamda * netpyne_network_builder.global_coupling_scaling)
 
 # Populations' configurations
 # When any of the properties model, params and scale below depends on regions,
 # set a handle to a function with
 # arguments (region_index=None) returning the corresponding property
-netpyne_model_builder.populations = [
+netpyne_network_builder.populations = [
     {"label": "E", "model": population_neuron_model,
      "nodes": None,  # None means "all"
-     "params": netpyne_model_builder.params_E,
-     "scale": netpyne_model_builder.scale_e},
+     "params": netpyne_network_builder.params_E,
+     "scale": netpyne_network_builder.scale_e},
     {"label": "I", "model": population_neuron_model,
      "nodes": None,  # None means "all"
-     "params": netpyne_model_builder.params_I,
-     "scale": netpyne_model_builder.scale_i}
+     "params": netpyne_network_builder.params_I,
+     "scale": netpyne_network_builder.scale_i}
   ]
 
 # Within region-node connections
@@ -215,20 +222,18 @@ netpyne_model_builder.populations = [
 # set a handle to a function with
 # arguments (region_index=None) returning the corresponding property
 # TODO: be mindful that for NetPyNE it's done different way (weight 1.0 and -1.0 for E and I respectively, and same 'static_synapse')
-synapse_model_E = "exc"
-synapse_model_I = "inh"
-conn_spec = {"allow_autapses": True, 'allow_multapses': True, 'rule': "all_to_all",
-             "indegree": None, "outdegree": None, "N": None, "p": 0.1}
+synapse_model = "synapse_model_placeholder"
+receptor_type_E = "exc"
+receptor_type_I = "inh"
+# conn_spec = {"allow_autapses": True, 'allow_multapses': True, 'rule': "all_to_all",
+#              "indegree": None, "outdegree": None, "N": None, "p": 0.1}
 
-# TODO: which values should go here?
-w_E_E_prox = 0.1 # {"distribution": "normal", "mu": 1.0, "sigma": 0.1}
-w_E_E_dist = 0.1
-w_E_I_prox = 0.1 # {"distribution": "normal", "mu": -1.0, "sigma": 0.1}
-w_E_I_dist = 0.1
-w_I_E = 0.1
-w_I_I = 0.1
+# TOOD: Does Netpyne allow autapses/multapses? Does all_to_all equals to prob=1.0 in Netpyne?
+conn_spec_all_to_all = {"rule": "all_to_all"}
+conn_spec_prob_low = {"rule": {"prob": 0.1}}
+conn_spec_prob_high = {"rule": {"prob": 0.5}}
 
-within_node_delay = netpyne_model_builder.default_min_delay
+within_node_delay = 5
 #                     {"distribution": "uniform", 
 #                      "low": np.minimum(netpyne_model_builder.default_min_delay, 
 #                                        netpyne_model_builder.default_populations_connection["delay"]), 
@@ -236,24 +241,24 @@ within_node_delay = netpyne_model_builder.default_min_delay
 #                                         2*netpyne_model_builder.default_populations_connection["delay"])}
 
 # connections between populations within same spiking region
-netpyne_model_builder.populations_connections = [
+netpyne_network_builder.populations_connections = [
      #              ->
     {"source": "E", "target": "E",  # E -> E This is a self-connection for population "E"
-     "synapse_model": synapse_model_E, "conn_spec": conn_spec,
+     "synapse_model": synapse_model, "conn_spec": conn_spec_prob_low,
      "weight": w_E_E_prox, "delay": within_node_delay,
-     "receptor_type": 0, "nodes": None},  # None means apply to all
+     "receptor_type": receptor_type_E, "nodes": None},  # None means apply to all
     {"source": "E", "target": "I",  # E -> I
-     "synapse_model": synapse_model_E, "conn_spec": conn_spec,
+     "synapse_model": synapse_model, "conn_spec": conn_spec_prob_high,
      "weight": w_E_I_prox, "delay": within_node_delay,
-     "receptor_type": 0, "nodes": None},  # None means apply to all
+     "receptor_type": receptor_type_E, "nodes": None},  # None means apply to all
     {"source": "I", "target": "E",  # I -> E
-     "synapse_model": synapse_model_I, "conn_spec": conn_spec, 
-     "weight": w_I_E, "delay": within_node_delay,
-     "receptor_type": 0, "nodes": None},  # None means apply to all
+     "synapse_model": synapse_model, "conn_spec": conn_spec_all_to_all, 
+     "weight": w_I_E, "delay": within_node_delay, # TODO: 1:23:02 says: -nest_model_builder.tvb_model.J_i[0].item
+     "receptor_type": receptor_type_I, "nodes": None},  # None means apply to all
     {"source": "I", "target": "I",  # I -> I This is a self-connection for population "I"
-     "synapse_model": synapse_model_I, "conn_spec": conn_spec,
+     "synapse_model": synapse_model, "conn_spec": conn_spec_prob_low,
      "weight": w_I_I, "delay": within_node_delay,
-     "receptor_type": 0, "nodes": None}  # None means apply to all
+     "receptor_type": receptor_type_I, "nodes": None}  # None means apply to all
     ]
 
 
@@ -266,88 +271,77 @@ netpyne_model_builder.populations_connections = [
 # depends on regions, set a handle to a function with
 # arguments (source_region_index=None, target_region_index=None)
 
-from tvb_multiscale.core.spiking_models.builders.templates import tvb_delay
+from tvb_multiscale.core.spiking_models.builders.templates import tvb_delay, tvb_weight, scale_tvb_weight
 from tvb_multiscale.tvb_netpyne.netpyne_models.builders.netpyne_templates import random_uniform_tvb_delay
     
-lamda = netpyne_model_builder.tvb_serial_sim["model.lamda"][0]
+lamda = netpyne_network_builder.tvb_serial_sim["model.lamda"][0]
+tvb_to_netpyne_weight_scaling = 10.0 # This value doesn't seem to have any theoretical meaning in itself. Rather it should be picked up by trial and error to make synaptic strength of connections between spiking nodes and mean-field nodes be biologically plausible.
+
+# from 1:24:12
+tvb_weight_fun = lambda source_node, target_node: \
+                scale_tvb_weight(source_node, target_node, netpyne_network_builder.tvb_weights, scale = tvb_to_netpyne_weight_scaling * netpyne_network_builder.global_coupling_scaling)
 
 tvb_delay_fun = lambda source_node, target_node: \
-                 tvb_delay(source_node, target_node, netpyne_model_builder.tvb_delays)
+                 tvb_delay(source_node, target_node, netpyne_network_builder.tvb_delays)
 #                  random_uniform_tvb_delay(source_node, target_node, netpyne_model_builder.tvb_delays, 
 #                                           low=netpyne_model_builder.tvb_dt, 
 #                                           high=2*netpyne_model_builder.tvb_dt, 
 #                                           sigma=0.1)
 
-receptor_by_source_region = lambda source_node, target_node: int(source_node + 1)
-
 # connections between populations between different spiking regions
 # Total excitatory spikes of one region node will be distributed to
-netpyne_model_builder.nodes_connections = [
+netpyne_network_builder.nodes_connections = [
     #              ->
     {"source": "E", "target": ["E"],
-     "synapse_model": synapse_model_E, "conn_spec": conn_spec,
-     "weight": w_E_E_dist, "delay": tvb_delay_fun,  
+     "synapse_model": synapse_model, "conn_spec": conn_spec_all_to_all,
+     "weight": tvb_weight_fun, "delay": tvb_delay_fun,  
     # Each region emits spikes in its own port:
-     "receptor_type": receptor_by_source_region,
+     "receptor_type": receptor_type_E,
      "source_nodes": None, "target_nodes": None}  # None means apply to all
     ]
 
 if lamda > 0:
-    netpyne_model_builder.nodes_connections.append(
+    tvb_weight_fun_E_I = lambda source_node, target_node: \
+                scale_tvb_weight(source_node, target_node, netpyne_network_builder.tvb_weights, scale=lamda * netpyne_network_builder.global_coupling_scaling)
+
+    netpyne_network_builder.nodes_connections.append(
         {"source": "E", "target": ["I"],
-         "synapse_model": synapse_model_E, "conn_spec": conn_spec,
-         "weight": w_E_I_dist, "delay": tvb_delay_fun,  
+         "synapse_model": synapse_model, "conn_spec": conn_spec_all_to_all,
+         "weight": tvb_weight_fun_E_I, "delay": tvb_delay_fun,  
         # Each region emits spikes in its own port:
-         "receptor_type": receptor_by_source_region,
+         "receptor_type": receptor_type_E,
          "source_nodes": None, "target_nodes": None}  # None means apply to all
     )
     
-    
 # Creating  devices to be able to observe NetPyNE activity:
 
-netpyne_model_builder.output_devices = []
+netpyne_network_builder.output_devices = []
 
 connections = OrderedDict({})
 #          label <- target population
 connections["E_spikes"] = "E"
 connections["I_spikes"] = "I"
-netpyne_model_builder.output_devices.append(
+netpyne_network_builder.output_devices.append(
     {"model": "spike_recorder", "params": {"record_to": "memory"},
      "connections": connections, "nodes": None})  # None means apply to all
 
 # Labels have to be different
 
-# TODO: uncomment when we have multimeter
-# connections = OrderedDict({})
-# #               label    <- target population
-# connections["E"] = "E"
-# connections["I"] = "I"
-# record_from = ["V_m", "I_L", "I_e",
-#                "spikes_exc", "s_AMPA", "I_AMPA",
-#                "x_NMDA", "s_NMDA", "I_NMDA",
-#                "spikes_inh", "s_GABA", "I_GABA"]
-# for i_node in range(netpyne_model_builder.number_of_regions):
-#     record_from.append("spikes_exc_ext_%d" % i_node)
-#     record_from.append("s_AMPA_ext_%d" % i_node)
-#     record_from.append("I_AMPA_ext_%d" % i_node)
-# params = {"interval": 1.0, 'record_from': record_from, "record_to": "memory"}  # ms
-# netpyne_model_builder.output_devices.append(
-#     {"model": "multimeter", "params": params,
-#      "connections": connections, "nodes": None})  # None means apply to all
+#TODO: multimeter should go here
     
 # Create a spike stimulus input device
-# TODO: commented out temporarily for clearer debugging.
-# netpyne_model_builder.input_devices = [
+# TODO: Background noisy stimulus. Commented out temporarily for clearer debugging.
+# netpyne_network_builder.input_devices = [
 #     {"model": "poisson_generator",
-#      "params": {"rate": 2400.0, "origin": 0.0, "start": 0.1},  # "stop": 100.0
+#      "params": {"rate": 7200.0, "origin": 0.0, "start": 0.1},  # "stop": 100.0
 #      "connections": {"Stimulus": ["E", "I"]}, 
 #      "nodes": None,         # None means apply to all
-#      "weights": w_E, 
-#      "delays": netpyne_model_builder.tvb_dt, 
+#      "weights": 1.0 * tvb_to_netpyne_weight_scaling, 
+#      "delays": netpyne_network_builder.tvb_dt, 
 # #      {"distribution": "uniform", 
 # #                 "low": netpyne_model_builder.tvb_dt, 
 # #                 "high": 2*netpyne_model_builder.tvb_dt},
-#     "receptor_type": lambda target_node: int(target_node + 1)},
+#     "receptor_type": receptor_type_E},
 #                                   ]  #
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -355,8 +349,12 @@ netpyne_model_builder.output_devices.append(
 # ----------------------------------------------------------------------------------------------------------------
 
 tvb_to_netpyne_state_variable = "R_e" # TODO: better name?
-netpyne_model_builder.state_variable = tvb_to_netpyne_state_variable
-netpyne_network = netpyne_model_builder.build(set_defaults=False) # or true, if netpyne_model_builder.set_default() is not yet ran
+# Due to peculiarities in timing of initialization of NetPyNE network, one should take care of creating stimuli population in advance, prior to building interface and creating connections (next step)
+
+netpyne_network_builder.state_variable = tvb_to_netpyne_state_variable
+# netpyne_network_builder.populations_to_couple_state_variable_to = lamda > 0
+
+netpyne_network = netpyne_network_builder.build(set_defaults=False) # or true, if netpyne_model_builder.set_default() is not yet ran
 
 # print(netpyne_network.print_str(connectivity=True))
 
@@ -372,7 +370,7 @@ tvb_netpyne_builder = \
     DefaultInterfaceBuilder(simulator, netpyne_network, spiking_nodes_ids, 
                             exclusive_nodes=True, populations_sizes=[N_E, N_I])
 
-tvb_to_netpyne_mode = "rate"  # "rate", "current", "param"
+tvb_to_netpyne_mode = "rate"  # TVB also has "current" and "param" options, but they aren't yet implemented in NetPyNE
 netpyne_to_tvb = True
 
 # Using all default parameters for this example
@@ -388,15 +386,17 @@ from tvb_multiscale.core.spiking_models.builders.templates import tvb_delay, sca
 from tvb_multiscale.tvb_netpyne.netpyne_models.builders.netpyne_templates \
     import random_normal_tvb_weight, random_uniform_tvb_delay, receptor_by_source_region
 
-lamda = netpyne_model_builder.tvb_serial_sim["model.lamda"][0].item()
-G = netpyne_model_builder.tvb_serial_sim["model.G"][0].item()
-tvb_netpyne_builder.global_coupling_scaling = G * netpyne_model_builder.tvb_serial_sim["coupling.a"][0].item()
-
+lamda = netpyne_network_builder.tvb_serial_sim["model.lamda"][0].item()
+G = netpyne_network_builder.tvb_serial_sim["model.G"][0].item()
+# tvb_netpyne_builder.global_coupling_scaling = G * netpyne_network_builder.tvb_serial_sim["coupling.a"][0].item()
+tvb_netpyne_builder.global_coupling_scaling = netpyne_network_builder.global_coupling_scaling # this is what video says. original version is commented out above
 
 # TVB -> NetPyNE
 
 if tvb_to_netpyne_mode in ["rate", "current"]:
 
+    tvb_weight_fun = lambda tvb_node_id, netpyne_node_id: \
+                        scale_tvb_weight(tvb_node_id, netpyne_node_id, tvb_netpyne_builder.tvb_weights, scale=tvb_to_netpyne_weight_scaling * tvb_netpyne_builder.global_coupling_scaling)
     tvb_delay_fun = lambda tvb_node_id, netpyne_node_id: \
                         tvb_delay(tvb_node_id, netpyne_node_id, tvb_netpyne_builder.tvb_delays)
 #                         random_uniform_tvb_delay(tvb_node_id, netpyne_node_id, tvb_netpyne_builder.tvb_delays,
@@ -409,18 +409,17 @@ if tvb_to_netpyne_mode in ["rate", "current"]:
 # Mean spike rates are applied in parallel to all target neurons
 
 if tvb_to_netpyne_mode == "rate":
-    weights = 1.0 # {"distribution": "normal", "mu": 1.0, "sigma": 0.1}
-    receptor_by_source_region = lambda source_node, target_node: int(source_node + 1)
+    weights = tvb_weight_fun # {"distribution": "normal", "mu": 1.0, "sigma": 0.1}
     
     tvb_netpyne_builder.tvb_to_spikeNet_interfaces = [
         {"model": "poisson_generator",
-         "params": {"allow_offgrid_times": False},
+         "params": {"connectivity_scale": 1.0},
     # # ---------Properties potentially set as function handles with args (tvb_node_id=None)-------------------------
          "interface_weights": 1.0 * N_E, # Convert mean value to total value
     # Applied outside NetPyNE for each interface device
     # -------Properties potentially set as function handles with args (tvb_node_id=None, netpyne_node_id=None)-----------
         "weights": weights, "delays": tvb_delay_fun,
-        "receptor_type": receptor_by_source_region,
+        "receptor_type": receptor_type_E,
         # --------------------------------------------------------------------------------------------------------------
         #             TVB sv -> NetPyNE population
         "connections": {tvb_to_netpyne_state_variable: ["E"]},
@@ -429,86 +428,19 @@ if tvb_to_netpyne_mode == "rate":
     if lamda > 0.0:
         tvb_netpyne_builder.tvb_to_spikeNet_interfaces.append(
             {"model": "poisson_generator",
-             "params": {"allow_offgrid_times": False},
+             "params": {"connectivity_scale": lamda},
         # # ---------Properties potentially set as function handles with args (tvb_node_id=None)-------------------------
-             "interface_weights": 1.0 * N_E, # Convert mean value to total value
+             "interface_weights": lamda * N_E, # Convert mean value to total value
         # Applied outside NetPyNE for each interface device
         # -------Properties potentially set as function handles with args (tvb_node_id=None, netpyne_node_id=None)-----------
             "weights": weights, "delays": tvb_delay_fun,
-            "receptor_type": receptor_by_source_region,
+            "receptor_type": receptor_type_E,
             # --------------------------------------------------------------------------------------------------------------
             #             TVB sv -> NetPyNE population
             "connections": {tvb_to_netpyne_state_variable: ["I"]},
             "source_nodes": None, "target_nodes": None
             }
         )
-
-
-    
-# Mean currents are distributed to all target neurons
-
-# TODO: to use coupling via currents, uncomment below and convert to netpyne
-# if tvb_to_netpyne_mode == "current":
-    
-#     tvb_weight_fun = \
-#         lambda tvb_node_id, netpyne_node_id: \
-#             scale_tvb_weight(tvb_node_id, netpyne_node_id, tvb_netpyne_builder.tvb_weights, 
-#                              scale=tvb_netpyne_builder.global_coupling_scaling)
-# #             random_normal_tvb_weight(tvb_node_id, netpyne_node_id, tvb_netpyne_builder.tvb_weights, 
-# #                                      scale=tvb_netpyne_builder.global_coupling_scaling, sigma=0.1)
-
-#     # --------For injecting current to NEST neurons via dc generators acting as TVB proxy nodes with TVB delays:--------
-
-#     tvb_netpyne_builder.tvb_to_spikeNet_interfaces = [
-#         {"model": "dc_generator", "params": {},
-#     # Properties potentially set as function handles with args (tvb_node_id=None)
-#     #   Applied outside NEST for each interface device
-#          "interface_weights": 17.5,  # N_E / N_E
-#     # Properties potentially set as function handles with args (tvb_node_id=None, netpyne_node_id=None)
-#          "weights": tvb_weight_fun,
-#          "delays": tvb_delay_fun,
-#     #                   TVB sv -> NEST population
-#          "connections": {"S_e": ["E"]},
-#          "source_nodes": None, "target_nodes": None}]  # None means all here
-
-#     if lamda > 0.0:
-#         tvb_netpyne_builder.tvb_to_spikeNet_interfaces.append(
-#            {"model": "dc_generator", "params": {},
-#         # ---------Properties potentially set as function handles with args (tvb_node_id=None)
-#         #   Applied outside NEST for each interface device
-#              "interface_weights": lamda * N_E / N_I,
-#         # Properties potentially set as function handles with args (tvb_node_id=None, netpyne_node_id=None)
-#              "weights": tvb_weight_fun,
-#              "delays": tvb_delay_fun,
-#         #                  TVB sv -> NEST population
-#              "connections": {"S_e": ["I"]},
-#              "source_nodes": None, "target_nodes": None}
-#         )
-
-# TODO: to use coupling via direct parameters update, uncomment below and convert to netpyne
-# if tvb_to_netpyne_mode == "param":
-
-#     # --------For directly setting an external current parameter in NEST neurons instantaneously:--------
-#     tvb_netpyne_builder.tvb_to_spikeNet_interfaces = [
-#         {"model": "current",  "parameter": "I_e",
-#     # Properties potentially set as function handles with args (tvb_node_id=None)
-#          "interface_weights": G,  # N_E / N_E
-#     #                  TVB sv -> NEST population
-#          "connections": {"S_e": ["E"]},
-#          "nodes": None}]  # None means all here
-#     if lamda > 0.0:
-#         # Coupling to inhibitory populations as well (feedforward inhibition):
-#         tvb_netpyne_builder.tvb_to_spikeNet_interfaces.append(
-#         {
-#             "model": "current", "parameter": "I_e",
-#     # Properties potentially set as function handles with args (tvb_node_id=None)
-#             "interface_weights": lamda * G * N_E / N_I,
-#     #                     TVB sv -> NEST population
-#             "connections": {"S_e": ["I"]},
-#             "nodes": None}
-#     )
-
-    
 
 if netpyne_to_tvb:
     # NetPyNE -> TVB:
@@ -526,7 +458,7 @@ if netpyne_to_tvb:
          "connections": connections, "nodes": None}]  # None means all here
 
     
-tvb_netpyne_builder.w_tvb_to_current = 1000 * netpyne_model_builder.tvb_serial_sim["model.J_N"][0]  # (nA of TVB -> pA of NetPyNE)
+tvb_netpyne_builder.w_tvb_to_current = 1000 * netpyne_network_builder.tvb_serial_sim["model.J_N"][0]  # (nA of TVB -> pA of NetPyNE)
 # WongWang model parameter r is in Hz, just like poisson_generator assumes in NetPyNE:
 tvb_netpyne_builder.w_tvb_to_spike_rate = 1.0
 # We return from a NetPyNE spike_detector the ratio number_of_population_spikes / number_of_population_neurons
@@ -824,7 +756,7 @@ if spikeNet_ts:
         mean_field_ts[:, :"I_GABA"].plot_timeseries(plotter_config=plotter.config, 
                                                     per_variable=mean_field_ts.shape[1] > MAX_VARS_IN_COLS)
         # Plot time series of spiking_nodes_ids nodes' external synapses:
-        for ind in netpyne_model_builder.spiking_nodes_inds:
+        for ind in netpyne_network_builder.spiking_nodes_inds:
             labels = ["spikes_exc_ext_%d" % ind, "s_AMPA_ext_%d" % ind, "I_AMPA_ext_%d" % ind]
             mean_field_ts[:, labels].plot_timeseries(plotter_config=plotter.config, 
                                                      per_variable=mean_field_ts.shape[1] > MAX_VARS_IN_COLS)
@@ -835,7 +767,7 @@ if spikeNet_ts:
             mean_field_ts[:, :"I_GABA"].plot_raster(plotter_config=plotter.config, 
                                                     per_variable=mean_field_ts.shape[1] > MAX_VARS_IN_COLS,
                                                     linestyle="--", alpha=0.5, linewidth=0.5)
-            for ind in netpyne_model_builder.spiking_nodes_inds:
+            for ind in netpyne_network_builder.spiking_nodes_inds:
                 labels = ["spikes_exc_ext_%d" % ind, "s_AMPA_ext_%d" % ind, "I_AMPA_ext_%d" % ind]
                 mean_field_ts[:, labels].plot_raster(plotter_config=plotter.config, 
                                                      per_variable=mean_field_ts.shape[1] > MAX_VARS_IN_COLS,

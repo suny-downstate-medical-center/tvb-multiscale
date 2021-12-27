@@ -62,13 +62,14 @@ def connect_device(netpyne_device, population, neurons_inds_fun, weight=1.0, del
     """
 
     netpyne_instance = netpyne_device.netpyne_instance
-    spiking_population_label = population.brain_region + "." + population.label # TODO: factor out this label creation
+    spiking_population_label = population.global_label
     if netpyne_device.model in config.NETPYNE_INPUT_DEVICES_PARAMS_DEF:
-        
-        target = spiking_population_label
-        print(f"Netpyne:: will connect input device {netpyne_device.model}. {netpyne_device.label} -> {target}")
-        # TODO: process `receptor_type` somehow?
-        netpyne_instance.createExternalConnection(sourcePop=netpyne_device.label, targetPop=target, weight=weight, delay=delay)
+
+        if neurons_inds_fun is not None:
+            print(neurons_inds_fun())
+        scale = kwargs.pop("connectivity_scale", 1.0)
+        print(f"Netpyne:: will connect input device {netpyne_device.model}. {netpyne_device.label} -> {spiking_population_label} (w: {weight})")
+        netpyne_instance.connectStimuli(sourcePop=netpyne_device.label, targetPop=spiking_population_label, weight=weight, delay=delay, receptorType=receptor_type, scale=scale)
     elif netpyne_device.model in config.NETPYNE_OUTPUT_DEVICES_PARAMS_DEF:
         
         netpyne_device.population_label = spiking_population_label

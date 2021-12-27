@@ -23,10 +23,6 @@ class NetpyneNetwork(SpikingNetwork):
 
     netpyne_instance = None
 
-    # TODO: are these output devices needed?
-    # _OutputSpikeDeviceDict = NetpyneOutputSpikeDeviceDict
-    # _OutputContinuousTimeDeviceDict = NetpyneOutputContinuousTimeDeviceDict
-
     def __init__(self, netpyne_instance,
                  brain_regions=None,
                  output_devices=None,

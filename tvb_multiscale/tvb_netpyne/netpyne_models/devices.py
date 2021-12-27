@@ -18,7 +18,9 @@ class NetpyneDevice(HasTraits):
         pass
 
     def _assert_spiking_simulator(self):
-        pass
+        if self.netpyne_instance is None:
+            raise ValueError("No NetPyNE instance associated to this %s of model %s with label %s!" %
+                             (self.__class__.__name__, self.model, self.label))
 
     @property
     def gids(self):
@@ -62,7 +64,7 @@ class NetpyneDevice(HasTraits):
             dt = values_dict['dt']
             self.netpyne_instance.applyFiringRate(rate, self.label, dt)
         else:
-            raise NotImplementedError('Input device for model {} not implemented'.format(self.model))
+            raise NotImplementedError(f'Input device for model {self.model} not implemented')
 
     def _Get(self, attr=None, nodes=None):
         """Method to get attributes of the SpikingNodeCollection's nodes.

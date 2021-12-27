@@ -4,15 +4,17 @@ import netpyne
 import numpy as np
 from numpy.core.fromnumeric import shape
 from numpy.lib.utils import source
-from tvb_multiscale.tvb_netpyne.ext.NodeCollection import NodeCollection
 
 from netpyne import specs, sim
 from netpyne.sim import *
 
-# TODO: NetpyneInstance is stub
 class NetpyneInstance(object):
     
-    def __init__(self):
+    def __init__(self, dt, simDurationFunc):
+
+        self.dt = dt
+        self.simDurationFunc = simDurationFunc
+
         self.spikingPopulationLabels = []
 
         self.netParams = specs.NetParams()
@@ -26,49 +28,28 @@ class NetpyneInstance(object):
         self.netParams.cellParams['art_NetStim'] = {'cellModel': 'DynamicNetStim'}
 
         ## Synaptic mechanism parameters
-        self.netParams.synMechParams['exc'] = {
-            'mod': 'Exp2Syn', 
-            'tau1': 0.1, 
-            'tau2': 1.0, 
-            'e': 0} # excitatory synaptic mechanism
-
-        self.netParams.synMechParams['inh'] = {
-            'mod': 'Exp2Syn',
-            'tau1': 0.1,
-            'tau2': 1.0,
-            'e': -70} # inhibitory synaptic mechanism
+        self.netParams.synMechParams['exc'] = {'mod': 'Exp2Syn', 'tau1': 0.8, 'tau2': 5.3, 'e': 0}  # NMDA
+        self.netParams.synMechParams['inh'] = {'mod': 'Exp2Syn', 'tau1': 0.6, 'tau2': 8.5, 'e': -75}  # GABA
 
         # Simulation options
         simConfig = specs.SimConfig()
 
-        simConfig.duration = 398 # ms # TODO: should be same as TVB duration
-        simConfig.dt = self.dt()
+        simConfig.dt = self.dt
         # simConfig.verbose = True
 
         # simConfig.recordCells = ['uE']
 
         simConfig.recordTraces = {'V_soma':{'sec':'soma','loc':0.5,'var':'v'}}  # Dict with traces to record
-        simConfig.analysis['plotTraces'] =  {'include': [('parahippocampal_L.E', [0]), ('parahippocampal_L.I', [0])], 'saveFig': True}
+        simConfig.analysis['plotTraces'] =  {'include': [('parahippocampal_L.E', [0, 10, 20, 30, 40]), ('parahippocampal_L.I', [0, 10, 20, 30, 40])], 'saveFig': True}
+        simConfig.analysis['plotRaster'] = {'include': ['parahippocampal_L.E', 'parahippocampal_L.I'], 'saveFig': True} 
         simConfig.recordStep = 0.05          # Step size in ms to save data (eg. V traces, LFP, etc)
         simConfig.savePickle = False        # Save params, network and sim output to pickle file
         simConfig.saveJson = False
 
         self.simConfig = simConfig
 
-        ## Population parameters
-        
-        # netParams.popParams['I'] = {'cellType': 'PYR', 'numCells': 20}
-
-        # simConfig = specs.SimConfig()
-
-        # sim.create(netParams = netParams, simConfig = simConfig)
-
-    def dt(self):
-        # integration dt in milliseconds
-        return 0.025 # TODO: should be decreased?
-
-    def minDelay():
-        return 0.025 # TODO
+    def minDelay(self):
+        return self.dt
 
     def createCells(self):
         self.simConfig.recordCellsSpikes = self.spikingPopulationLabels # to exclude stimuli-cells
@@ -78,6 +59,7 @@ class NetpyneInstance(object):
         sim.net.createCells()                 # instantiate network cells based on defined populations
     
     def createAndPrepareNetwork(self): # TODO: bad name?
+        sim.cfg.duration = self.simDurationFunc()
 
         sim.setNetParams(self.netParams)
 
@@ -88,10 +70,7 @@ class NetpyneInstance(object):
 
         prepareContinuousRun()
 
-    def createExternalConnection(self, sourcePop, targetPop, weight, delay):
-
-        # TODO: weight by default is 1.0 which is huge. Trace down where it comes from
-        weight = 0.01
+    def connectStimuli(self, sourcePop, targetPop, weight, delay, receptorType, scale):
 
         # first create artificial cells serving as stimulus, one per each target cell
         
@@ -99,33 +78,39 @@ class NetpyneInstance(object):
         # number = self.netParams.popParams[targetPop]['numCells']
         # self.createArtificialCells(sourcePop, number)
 
+        sourceCells = self.netParams.popParams[sourcePop]['numCells']
+        targetCells = self.netParams.popParams[targetPop]['numCells']
+
+        # one-to-one connection, scaled by 'lamda' of connectivity (TVB-defined scale)
+        prob = 1.0 / sourceCells
+        prob *= scale
+
         connLabel = sourcePop + '->' + targetPop
         self.netParams.connParams[connLabel] = {
             'preConds': {'pop': sourcePop},
             'postConds': {'pop': targetPop},
-            'convergence': 1, # TODO: ?
+            'probability': prob,
             'weight': weight,
             'delay': delay,
-            'synMech': 'exc' # TODO: can (or should) this be de-hardcoded?
+            'synMech': receptorType
         }
 
-    def createInternalConnection(self, sourcePopulation, targetPopulation, synapticMechanism, weight, delay):
+    def interconnectSpikingPopulations(self, sourcePopulation, targetPopulation, synapticMechanism, weight, delay, probabilityOfConn):
+
+        delayFunc = 'max(1, normal(' + str(delay) + ',2))'
+
         label = sourcePopulation + "->" + targetPopulation
         self.netParams.connParams[label] = {
             'preConds': {'pop': sourcePopulation},       # conditions of presyn cells
             'postConds': {'pop': targetPopulation},      # conditions of postsyn cells
-            'probability': 0.1, # TODO: will get value from conn_spec (rule=all_to_all, allow_autapses, allow multapses etc.)
+            'probability': probabilityOfConn,
             'weight': weight,
-            'delay': delay,
+            'delay': delayFunc,
             'synMech': synapticMechanism }
 
-    def createNodeCollection(self, brainRegion, popLabel, cellModel, size, params=None):
-        collection = NodeCollection(brainRegion, popLabel, size)
-        print(f"Netpyne:: Creating population '{collection.label}' of {size} neurons of type '{cellModel}'.")
-        self.spikingPopulationLabels.append(collection.label)
-
-        self.netParams.popParams[collection.label] = {'cellType': cellModel, 'numCells': size}
-        return collection
+    def registerPopulation(self, label, cellModel, size):
+        self.spikingPopulationLabels.append(label)
+        self.netParams.popParams[label] = {'cellType': cellModel, 'numCells': size}
 
     from sys import float_info
     def createArtificialCells(self, label, number, interval=float_info.max, params=None):
@@ -146,7 +131,7 @@ class NetpyneInstance(object):
 
     def latestSpikes(self, timeWind):
 
-        t = h.t # TODO: were and in other places: don't use h.t directly, but through netpyne engine
+        t = h.t # TODO: here and in other places: don't use h.t directly, but through netpyne engine
 
         spktvec = np.array(sim.simData['spkt'])
         spkgids = np.array(sim.simData['spkid'])
@@ -168,18 +153,14 @@ class NetpyneInstance(object):
         return spktimes, spkgids
 
     #rate = list(values_dict.values())[0]
-    def applyFiringRate(self, rate, sourcePop, dt):        
+    def applyFiringRate(self, rate, sourcePop, dt):
+
+        if rate == 0.0:
+            return
 
         stimulusCellGids = sim.net.pops[sourcePop].cellGids
 
-        # the input rate is scaled by number of neurons in stimulated population. decreasing it back:
-        # TODO.tvb: is this expected?
-        rate /= len(stimulusCellGids)
-
         # TODO.TVB: some crazy values of rate are conveyed in the beginning of simulation. Is this expected?
-        # if rate > 400:
-        #     # For now - scale them down
-        #     rate = rate / 2.0
 
         # print(f"Netpyne:: apply firing rate {rate}: {sourcePop}")
 
@@ -220,7 +201,7 @@ class NetpyneProxyDevice(object):
         cellGids = sim.net.pops[popLabel].cellGids
 
         t = h.t
-        timewind = 0.1
+        timewind = 0.1 # TODO: de-hardcode time
 
         spktvec = np.array(sim.simData['spkt'])
         spkgids = np.array(sim.simData['spkid'])
@@ -266,6 +247,7 @@ def runForInterval(interval):
     if round(h.t) < sim.cfg.duration:
         sim.pc.psolve(min(sim.cfg.duration, h.t+interval))
     else:
+        # TODO: make sure this is always called
         global done
         if done:
             return

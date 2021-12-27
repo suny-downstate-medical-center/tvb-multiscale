@@ -12,13 +12,17 @@ class  NetpynePopulation(SpikingPopulation):
         kwargs["brain_region"] = brain_region
         super(NetpynePopulation, self).__init__(nodes, **kwargs)
 
+    @property
+    def global_label(self):
+        return self.brain_region + '.' + self.label
+
     def _print_neurons(self):
         pass
 
     @property
     def gids(self):
         """Method to get a sequence (list, tuple, array) of the individual gids of populations' neurons"""
-        gids = self.netpyne_instance.cellGidsForPop(self._population.label)
+        gids = self.netpyne_instance.cellGidsForPop(self.global_label)
         return gids
 
     def _Set(self, values_dict, neurons=None):
@@ -85,7 +89,9 @@ class  NetpynePopulation(SpikingPopulation):
 
     @property
     def _assert_spiking_simulator(self):
-        pass
+        if self.netpyne_instance is None:
+            raise ValueError("No NetPyNE instance associated to this %s of model %s with label %s!" %
+                             (self.__class__.__name__, self.model, self.label))
 
     @property
     def _assert_nodes(self, nodes=None):

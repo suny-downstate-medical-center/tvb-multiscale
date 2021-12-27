@@ -6,6 +6,7 @@ class Config(BaseConfig):
     DEFAULT_MODEL = "default_model_placeholder" # TODO: what's the default model?
 
     # Delays should be at least equal to NetPyNE time resolution
+    # TODO: synapse_model_placeholder? and what weight should go here?
     DEFAULT_CONNECTION = {"synapse_model": "synapse_model_placeholder", "weight": 1.0, "delay": 1.0, 'receptor_type': 0,
                           "source_inds": None, "target_inds": None, "params": {},
                           "conn_spec": {"allow_autapses": True, 'allow_multapses': True, 'rule': "all_to_all",

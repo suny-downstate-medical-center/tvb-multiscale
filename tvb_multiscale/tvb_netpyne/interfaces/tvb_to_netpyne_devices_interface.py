@@ -12,9 +12,11 @@ class TVBtoNetpyneDeviceInterface(TVBtoSpikeNetDeviceInterface):
 class TVBtoNetpynePoissonGeneratorInterface(TVBtoNetpyneDeviceInterface):
 
     def set(self, values):
-        # TODO: sanity-check rate here?
+        if not (self.scale == self.total_scale).all():
+            return # TODO.TVB
+        values /= self.total_scale
         self.Set({"rates": np.maximum([0], self._assert_input_size(values)),
-                  "dt": self.dt                
+                  "dt": self.dt,
                 })
 
 INPUT_INTERFACES_DICT = {

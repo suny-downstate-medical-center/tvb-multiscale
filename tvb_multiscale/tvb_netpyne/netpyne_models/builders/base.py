@@ -5,6 +5,7 @@ from tvb_multiscale.core.spiking_models.builders.factory import build_and_connec
 
 from tvb_multiscale.tvb_netpyne.netpyne_models.network import NetpyneNetwork
 from tvb_multiscale.tvb_netpyne.netpyne_models.population import NetpynePopulation
+from tvb_multiscale.tvb_netpyne.ext.NodeCollection import NodeCollection
 from tvb_multiscale.tvb_netpyne.ext.instance import NetpyneInstance
 from tvb_multiscale.tvb_netpyne.config import CONFIGURED, initialize_logger
 
@@ -26,11 +27,13 @@ class NetpyneNetworkBuilder(SpikingNetworkBuilder):
         self.netpyne_instance = netpyne_instance
         self._spiking_brain =  NetpyneBrain()
 
+        # simulation_length os CoSimulator may not have been initialized at this point, so need to defer setting it to NetPyNE:
+        self._get_simulation_duration_func = lambda: tvb_simulator.simulation_length
+
     def configure(self):
-        self.netpyne_instance = NetpyneInstance()
         super(NetpyneNetworkBuilder, self).configure()
-        # self.compile_install_nest_modules(self.modules_to_install)
-        # self.confirm_compile_install_nest_models(self._models)
+        self.netpyne_instance = NetpyneInstance(self.spiking_dt, self._get_simulation_duration_func)
+        # TODO: maybe check here that all neede .mod files compiled? Run nrnivmodl if no.
 
     def set_synapse(self, syn_model, weight, delay, receptor_type, params={}):
         """Method to set the synaptic model, the weight, the delay,
@@ -45,6 +48,7 @@ class NetpyneNetworkBuilder(SpikingNetworkBuilder):
            Returns:
             a dictionary of the whole synapse configuration
         """
+        # TODO: check if synapse set
         syn_spec = {'synapse_model': syn_model, 'weight': weight, 'delay': delay, 'receptor_type': receptor_type}
         syn_spec.update(params)
         return syn_spec
@@ -64,19 +68,12 @@ class NetpyneNetworkBuilder(SpikingNetworkBuilder):
         # TODO: parse low-level values from `params`
         size = int(np.round(size))
 
-        # node collection for current spiking node
-        node_collection = self.netpyne_instance.createNodeCollection(brain_region, label, model, size, params=params)
+        collection = NodeCollection(brain_region, label, size)
+        population = NetpynePopulation(collection, self, label, model, brain_region)
 
-        return NetpynePopulation(node_collection, self.netpyne_instance, label, model, brain_region)
-        # TODO: needed?
-        return NESTPopulation(self.nest_instance.Create(model, n_neurons, params=params),
-                              nest_instance=self.nest_instance, label=label, model=model, brain_region=brain_region)
-
-    def _create_artificial_cells(self, size, project_to_node, project_to_pop): 
-        for region in self.region_labels:
-            if region not in self.spiking_nodes_labels:
-                label = self.state_variable + " - " + region # TODO: de-hardcode/workaround this composition
-                self.netpyne_instance.createArtificialCells(label, size)
+        print(f"Netpyne:: Creating population '{population.global_label}' of {size} neurons of type '{model}'.")
+        self.netpyne_instance.registerPopulation(population.global_label, model, size)
+        return population
 
     def connect_two_populations(self, pop_src, src_inds_fun, pop_trg, trg_inds_fun, conn_spec, syn_spec):
         """Method to connect two NetpynePopulation instances in the SpikingNetwork.
@@ -90,10 +87,16 @@ class NetpyneNetworkBuilder(SpikingNetworkBuilder):
             synapse_params: a dict of parameters of the synapses among the neurons of the two populations,
                             including weight, delay and synaptic receptor type ones
         """
-        # TODO: Parse also conn_spec. And should we also use syn_spec["receptor_type"], src_inds_fun, trg_inds_fun? (see NEST for reference)
-        src = pop_src.brain_region + '.' + pop_src.label
-        trg = pop_trg.brain_region + '.' + pop_trg.label
-        self.netpyne_instance.createInternalConnection(src, trg, syn_spec["synapse_model"], syn_spec["weight"], syn_spec["delay"])
+        # TODO: Should we also use src_inds_fun, trg_inds_fun? (see NEST for reference)
+        src = pop_src.global_label
+        trg = pop_trg.global_label
+
+        rule = conn_spec["rule"]
+        if rule == "all_to_all":
+            prob = 1.0
+        else:
+            prob = rule["prob"]
+        self.netpyne_instance.interconnectSpikingPopulations(src, trg, syn_spec["receptor_type"], syn_spec["weight"], syn_spec["delay"], prob)
 
     def build_spiking_region_node(self, label="", input_node=None, *args, **kwargs):
         """This methods builds a NetpyneRegionNode instance,
@@ -115,19 +118,22 @@ class NetpyneNetworkBuilder(SpikingNetworkBuilder):
            - brain region nodes (pandas.Series) they target.
            See tvb_multiscale.core.spiking_models.builders.factory
            and tvb_multiscale.tvb_netpyne.netpyne_models.builders.netpyne_factory"""
-        # TODO: check the following assumption: this part is used only to record spiking activity for observation, not for updating TVB state
         return build_and_connect_devices(devices, create_device, connect_device,
                                          self._spiking_brain, self.config, netpyne_instance=self.netpyne_instance)
 
-    def build_spiking_region_nodes(self, *args, **kwargs):
-        super(NetpyneNetworkBuilder, self).build_spiking_region_nodes(*args, **kwargs)
-        # TODO: re-visit once it's clear how to deal with I-projecting input device
-        for connection in self.nodes_connections:
-            target = connection['target'][0]
-            region = self._spiking_brain.nodes[0]
-            for pop in region:
-                if target == pop.pop_label:
-                    self._create_artificial_cells(pop.size, project_to_node=pop.brain_region, project_to_pop=pop.pop_label)
+    def build_spiking_brain(self):
+        """Method to build and connect all Spiking brain region nodes,
+           first withing, and then, among them.
+        """
+        super().build_spiking_brain()
+
+        # TODO: de-hardcode 100 below. Take from self.population_sizes, self.population_params, self.populations_nodes? Mind model lamda
+        for region in self.region_labels:
+            if region not in self.spiking_nodes_labels:
+                label = self.state_variable + " - " + region # TODO: de-hardcode/workaround this composition?
+                self.netpyne_instance.createArtificialCells(label, 100)
+
+        # TODO: do the same also for bg stimulus (self.input_devices)
         self.netpyne_instance.createCells()
 
     def build_spiking_network(self):
