@@ -164,9 +164,6 @@ class DefaultInterfaceBuilder(TVBNetpyneInterfaceBuilder):
             tvb_spikeNet_interface = self._tvb_netpyne_interface()
         super(DefaultInterfaceBuilder, self).build_interface(tvb_spikeNet_interface)
 
-        # for interface in self.tvb_to_spikeNet_interfaces:
-        #     weightss = interface["interface_weights"]
-            # print(f"wghtss {weightss}")
         total_scale = None
         for tvb_to_spike in tvb_spikeNet_interface.tvb_to_spikeNet_interfaces:
             if total_scale is None:

@@ -35,6 +35,10 @@ class NetpyneNetworkBuilder(SpikingNetworkBuilder):
         self.netpyne_instance = NetpyneInstance(self.spiking_dt, self._get_simulation_duration_func)
         # TODO: maybe check here that all neede .mod files compiled? Run nrnivmodl if no.
 
+    def configureCells(self):
+        for model in self.cell_models:
+            self.netpyne_instance.registerCellModel(model)
+
     def set_synapse(self, syn_model, weight, delay, receptor_type, params={}):
         """Method to set the synaptic model, the weight, the delay,
            the synaptic receptor type, and other possible synapse parameters
@@ -48,7 +52,7 @@ class NetpyneNetworkBuilder(SpikingNetworkBuilder):
            Returns:
             a dictionary of the whole synapse configuration
         """
-        # TODO: check if synapse set
+        # populate these values to be read in `connect_two_populations` below
         syn_spec = {'synapse_model': syn_model, 'weight': weight, 'delay': delay, 'receptor_type': receptor_type}
         syn_spec.update(params)
         return syn_spec
@@ -65,7 +69,6 @@ class NetpyneNetworkBuilder(SpikingNetworkBuilder):
            Returns:
             a NetpynePopulation class instance
         """
-        # TODO: parse low-level values from `params`
         size = int(np.round(size))
 
         collection = NodeCollection(brain_region, label, size)
@@ -127,11 +130,10 @@ class NetpyneNetworkBuilder(SpikingNetworkBuilder):
         """
         super().build_spiking_brain()
 
-        # TODO: de-hardcode 100 below. Take from self.population_sizes, self.population_params, self.populations_nodes? Mind model lamda
         for region in self.region_labels:
             if region not in self.spiking_nodes_labels:
-                label = self.state_variable + " - " + region # TODO: de-hardcode/workaround this composition?
-                self.netpyne_instance.createArtificialCells(label, 100)
+                label = self.state_variable + " - " + region # TODO: de-hardcode/workaround this composition? Make sure self.population_order below is precise enough
+                self.netpyne_instance.createArtificialCells(label, self.population_order)
 
         # TODO: do the same also for bg stimulus (self.input_devices)
         self.netpyne_instance.createCells()

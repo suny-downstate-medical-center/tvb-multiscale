@@ -5,19 +5,23 @@ import time
 import numpy as np
 
 from tvb.basic.profile import TvbProfile
+
+from tvb_multiscale.tvb_netpyne.ext.instance import NetpyneCellGeometry, NetpyneCellModel, NetpyneMechanism
 TvbProfile.set_profile(TvbProfile.LIBRARY_PROFILE)
 
 from tvb_multiscale.tvb_netpyne.config import *
 
 # TODO: which values should go here?
-w_E_E_prox = 0.0
+w_E_E_prox = 0.002
 w_E_I_prox = 0.01
 w_I_E = 0.01
 w_I_I = 0.0045
 
+params = "EE_{}_EI_{}_IE_{}_II_{}".format(w_E_E_prox, w_E_I_prox, w_I_E, w_I_I)
+
 work_path = os.getcwd()
 data_path = os.path.join(work_path.split("tvb_netpyne")[0], "data")
-outputs_path = os.path.join(work_path, "netpyne-outputs/RWW-coupled-EE-II-0.0075-EI-0.01-IE-0.04")
+outputs_path = os.path.join(work_path, "netpyne-outputs/RWW_" + params)
 config = Config(output_base=outputs_path)
 
 config.figures.SHOW_FLAG = True
@@ -76,7 +80,7 @@ connectivity.configure()
 simulator = CoSimulator()
 simulator.model = ReducedWongWangExcIOInhI()
 simulator.model.G = np.array([2.0, ])     # Global cloupling scaling
-simulator.model.lamda = np.array([0.2, ]) # Feedforward inhibition
+simulator.model.lamda = np.array([0.0, ]) # Feedforward inhibition
 simulator.model.w_p = np.array([1.4, ])   # Feedback excitation
 simulator.model.J_i = np.array([1.0, ])   # Feedback inhibition
 
@@ -117,7 +121,7 @@ number_of_regions = simulator.connectivity.region_labels.shape[0]
 spiking_nodes_ids = []  # the indices of fine scale regions modeled with NetPyNE
 # We model parahippocampal cortices (left and right) with NetPyNE
 for id in range(number_of_regions):
-    if simulator.connectivity.region_labels[id].find("hippocampal_L") >= 0:
+    if simulator.connectivity.region_labels[id].find("hippocampal_") >= 0:
         spiking_nodes_ids.append(id)
 
 # originally - WWDeco2014Builder        
@@ -158,62 +162,66 @@ netpyne_network_builder.global_coupling_scaling = \
 netpyne_network_builder.lamda = netpyne_network_builder.tvb_serial_sim["model.lamda"][0].item()
 
 
-# When any of the properties model, params and scale below depends on regions,
+# When any of the properties params and scale below depends on regions,
 # set a handle to a function with
 # arguments (region_index=None) returning the corresponding property
+def params_fun(node_index):
+    # just for demonstration purposes:
+    if netpyne_network_builder.region_labels[node_index].find('_L') >= 0:
+        hem = 'left'
+    else:
+        hem = 'right'
+    return {'hemisphere': hem}
 
-def param_fun(node_index, params, weight):
-    w_E_ext = \
-        weight * netpyne_network_builder.tvb_weights[:, node_index]
-    w_E_ext[node_index] = 1.0  # this is external input weight to this node
-    out_params = deepcopy(params)
-    out_params.update({"w_E_ext": w_E_ext})
-    return out_params
-    
+# common_params = {
+#     "V_th": -50.0, "V_reset": -55.0, "E_L": -70.0, "E_ex": 0.0, "E_in": -70.0,                       # mV
+#     "tau_decay_AMPA": 2.0, "tau_decay_GABA_A": 10.0, "tau_decay_NMDA": 100.0, "tau_rise_NMDA": 2.0,  # ms
+#     "s_AMPA_ext_max": N_E * np.ones((netpyne_network_builder.number_of_regions,)).astype("f"), 
+#     "N_E": N_E, "N_I": N_I, "epsilon": 1.0  # /N_E
+# }
+# params_E = {
+#     "C_m": 500.0,    # pF
+#     "g_L": 25.0,     # nS
+#     "t_ref": 2.0,    # ms
+#     "g_AMPA_ext": 3.37, "g_AMPA": 0.065, "g_NMDA": 0.20, "g_GABA_A": 10.94,  # nS
+#     "w_E": netpyne_network_builder.tvb_serial_sim["model.w_p"][0].item(), 
+#     "w_I": netpyne_network_builder.tvb_serial_sim["model.J_i"][0].item()
+# }
+# params_E.update(common_params)
+# netpyne_network_builder.params_E = \
+#     lambda node_index: param_fun(node_index, params_E,
+#                                  weight=netpyne_network_builder.global_coupling_scaling)
+# netpyne_network_builder.params_E = params_E
+geom = NetpyneCellGeometry(diam=18.8, length=18.8, axialResistance=123)
+mech = NetpyneMechanism(name='hh', gNaBar=0.12, gKBar=0.036, gLeak=0.003, eLeak=-70)
+cell_model = NetpyneCellModel(name='PYR', geom=geom, mech=mech)
+netpyne_network_builder.cell_models = [cell_model]
 
-common_params = {
-    "V_th": -50.0, "V_reset": -55.0, "E_L": -70.0, "E_ex": 0.0, "E_in": -70.0,                       # mV
-    "tau_decay_AMPA": 2.0, "tau_decay_GABA_A": 10.0, "tau_decay_NMDA": 100.0, "tau_rise_NMDA": 2.0,  # ms
-    "s_AMPA_ext_max": N_E * np.ones((netpyne_network_builder.number_of_regions,)).astype("f"), 
-    "N_E": N_E, "N_I": N_I, "epsilon": 1.0  # /N_E
-}
-params_E = {
-    "C_m": 500.0,    # pF
-    "g_L": 25.0,     # nS
-    "t_ref": 2.0,    # ms
-    "g_AMPA_ext": 3.37, "g_AMPA": 0.065, "g_NMDA": 0.20, "g_GABA_A": 10.94,  # nS
-    "w_E": netpyne_network_builder.tvb_serial_sim["model.w_p"][0].item(), 
-    "w_I": netpyne_network_builder.tvb_serial_sim["model.J_i"][0].item()
-}
-params_E.update(common_params)
-netpyne_network_builder.params_E = \
-    lambda node_index: param_fun(node_index, params_E,
-                                 weight=netpyne_network_builder.global_coupling_scaling)
-
-params_I = {
-    "C_m": 200.0,  # pF
-    "g_L": 20.0,   # nS
-    "t_ref": 1.0,  # ms
-    "g_AMPA_ext": 2.59, "g_AMPA": 0.051,"g_NMDA": 0.16, "g_GABA_A": 8.51,  # nS
-    "w_E": 1.0, "w_I": 1.0
-}
-params_I.update(common_params)
-netpyne_network_builder.params_I = \
-    lambda node_index: param_fun(node_index, params_I,
-                                 weight=netpyne_network_builder.lamda * netpyne_network_builder.global_coupling_scaling)
+# params_I = {
+#     "C_m": 200.0,  # pF
+#     "g_L": 20.0,   # nS
+#     "t_ref": 1.0,  # ms
+#     "g_AMPA_ext": 2.59, "g_AMPA": 0.051,"g_NMDA": 0.16, "g_GABA_A": 8.51,  # nS
+#     "w_E": 1.0, "w_I": 1.0
+# }
+# params_I.update(common_params)
+# netpyne_network_builder.params_I = \
+#     lambda node_index: param_fun(node_index, params_I,
+#                                  weight=netpyne_network_builder.lamda * netpyne_network_builder.global_coupling_scaling)
+# netpyne_network_builder.params_I = params_I
 
 # Populations' configurations
 # When any of the properties model, params and scale below depends on regions,
 # set a handle to a function with
 # arguments (region_index=None) returning the corresponding property
 netpyne_network_builder.populations = [
-    {"label": "E", "model": population_neuron_model,
+    {"label": "E", "model": cell_model.name,
      "nodes": None,  # None means "all"
-     "params": netpyne_network_builder.params_E,
+     "params": lambda node_index: params_fun(node_index),
      "scale": netpyne_network_builder.scale_e},
-    {"label": "I", "model": population_neuron_model,
+    {"label": "I", "model": cell_model.name,
      "nodes": None,  # None means "all"
-     "params": netpyne_network_builder.params_I,
+    #  "params": netpyne_network_builder.params_I,
      "scale": netpyne_network_builder.scale_i}
   ]
 
@@ -248,11 +256,11 @@ netpyne_network_builder.populations_connections = [
      "weight": w_E_E_prox, "delay": within_node_delay,
      "receptor_type": receptor_type_E, "nodes": None},  # None means apply to all
     {"source": "E", "target": "I",  # E -> I
-     "synapse_model": synapse_model, "conn_spec": conn_spec_prob_high,
+     "synapse_model": synapse_model, "conn_spec": conn_spec_prob_low,
      "weight": w_E_I_prox, "delay": within_node_delay,
      "receptor_type": receptor_type_E, "nodes": None},  # None means apply to all
     {"source": "I", "target": "E",  # I -> E
-     "synapse_model": synapse_model, "conn_spec": conn_spec_all_to_all, 
+     "synapse_model": synapse_model, "conn_spec": conn_spec_prob_low,
      "weight": w_I_E, "delay": within_node_delay, # TODO: 1:23:02 says: -nest_model_builder.tvb_model.J_i[0].item
      "receptor_type": receptor_type_I, "nodes": None},  # None means apply to all
     {"source": "I", "target": "I",  # I -> I This is a self-connection for population "I"
@@ -492,7 +500,7 @@ tvb_netpyne_model = tvb_netpyne_builder.build_interface(tvb_to_spikeNet_mode=tvb
 simulator.configure(tvb_spikeNet_interface=tvb_netpyne_model)
 # ...and simulate!
 t = time.time()
-simulation_length=40.0  # Set at least 1100.0 for a meaningful simulation
+simulation_length=80.0  # Set at least 1100.0 for a meaningful simulation
 transient = simulation_length/11
 results = simulator.run(simulation_length=simulation_length)
 

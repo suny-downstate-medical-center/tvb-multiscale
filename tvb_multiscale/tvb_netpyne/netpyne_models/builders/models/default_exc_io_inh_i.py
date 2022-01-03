@@ -20,6 +20,7 @@ class DefaultExcIOInhIBuilder(NetpyneNetworkBuilder):
     def build(self, set_defaults=True):
         if set_defaults:
             self.set_defaults()
+        self.configureCells()
         return super(DefaultExcIOInhIBuilder, self).build()
 
     # def receptor_E_fun(self):

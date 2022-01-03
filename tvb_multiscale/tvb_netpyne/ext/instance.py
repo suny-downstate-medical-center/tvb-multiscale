@@ -8,6 +8,42 @@ from numpy.lib.utils import source
 from netpyne import specs, sim
 from netpyne.sim import *
 
+class NetpyneCellGeometry(object):
+
+    def __init__(self, diam, length, axialResistance) :
+        self.diam = diam
+        self.length = length
+        self.axialR = axialResistance
+
+    def toDict(self):
+        return {'diam': self.diam, 'L': self.length, 'Ra': self.axialR}
+
+class NetpyneMechanism(object):
+
+    def __init__(self, name, gNaBar, gKBar, gLeak, eLeak):
+        self.name = name
+        self.gNaBar = gNaBar
+        self.gKBar = gKBar
+        self.gLeak = gLeak
+        self.eLeak = eLeak
+
+    def toDict(self):
+        return {'gnabar': self.gNaBar, 'gkbar': self.gKBar, 'gl': self.gLeak, 'el': self.eLeak}
+
+class NetpyneCellModel(object):
+
+    def __init__(self, name, geom, mech):
+        self.name = name
+        self.geom = geom
+        self.mech = mech
+
+    def geometry(self):
+        return self.geom.toDict()
+
+    def getMech(self):
+        return self.mech.name, self.mech.toDict()
+
+
 class NetpyneInstance(object):
     
     def __init__(self, dt, simDurationFunc):
@@ -18,35 +54,41 @@ class NetpyneInstance(object):
         self.spikingPopulationLabels = []
 
         self.netParams = specs.NetParams()
-        cellParams = netpyne.specs.Dict()
-        cellParams.secs.soma.geom = {'diam': 18.8, 'L': 18.8, 'Ra': 123.0}
-        cellParams.secs.soma.mechs.hh = {'gnabar': 0.12, 'gkbar': 0.036, 'gl': 0.003, 'el': -70}
-
-        self.netParams.cellParams['PYR'] = cellParams
 
         # using VecStim model from NEURON for artificial cells serving as stimuli
         self.netParams.cellParams['art_NetStim'] = {'cellModel': 'DynamicNetStim'}
 
         ## Synaptic mechanism parameters
+        # hia: de-hardcode 'em
         self.netParams.synMechParams['exc'] = {'mod': 'Exp2Syn', 'tau1': 0.8, 'tau2': 5.3, 'e': 0}  # NMDA
         self.netParams.synMechParams['inh'] = {'mod': 'Exp2Syn', 'tau1': 0.6, 'tau2': 8.5, 'e': -75}  # GABA
 
         # Simulation options
         simConfig = specs.SimConfig()
 
-        simConfig.dt = self.dt
+        simConfig.dt = dt
         # simConfig.verbose = True
-
-        # simConfig.recordCells = ['uE']
 
         simConfig.recordTraces = {'V_soma':{'sec':'soma','loc':0.5,'var':'v'}}  # Dict with traces to record
         simConfig.analysis['plotTraces'] =  {'include': [('parahippocampal_L.E', [0, 10, 20, 30, 40]), ('parahippocampal_L.I', [0, 10, 20, 30, 40])], 'saveFig': True}
         simConfig.analysis['plotRaster'] = {'include': ['parahippocampal_L.E', 'parahippocampal_L.I'], 'saveFig': True} 
-        simConfig.recordStep = 0.05          # Step size in ms to save data (eg. V traces, LFP, etc)
+        
+        simConfig.recordStep = np.min(1.0, dt * 10)
         simConfig.savePickle = False        # Save params, network and sim output to pickle file
         simConfig.saveJson = False
 
         self.simConfig = simConfig
+
+    def registerCellModel(self, cellModel):
+        cellParams = netpyne.specs.Dict()
+
+        cellParams.secs.soma.geom = cellModel.geom.toDict()
+        #  {'diam': 18.8, 'L': 18.8, 'Ra': 123.0}
+        mechName, mech = cellModel.getMech()
+        cellParams.secs.soma.mechs[mechName] = mech
+        
+
+        self.netParams.cellParams[cellModel.name] = cellParams
 
     def minDelay(self):
         return self.dt
@@ -73,10 +115,6 @@ class NetpyneInstance(object):
     def connectStimuli(self, sourcePop, targetPop, weight, delay, receptorType, scale):
 
         # first create artificial cells serving as stimulus, one per each target cell
-        
-        # TODO: would be great to bring it back to work:
-        # number = self.netParams.popParams[targetPop]['numCells']
-        # self.createArtificialCells(sourcePop, number)
 
         sourceCells = self.netParams.popParams[sourcePop]['numCells']
         targetCells = self.netParams.popParams[targetPop]['numCells']
@@ -265,7 +303,7 @@ def generateSpikesForPopulation(numNeurons, rate, dt):
         # instead of generating spike trains for time dt for each neuron,
         # generate one spike train for time dt*numNeurons and break it down between neurons
         totalDuration = numNeurons * dt
-        allSpikes = poisson_generator(rate, 0, totalDuration)
+        allSpikes = poisson_generator(rate, 0, totalDuration, 5)
 
         # now divide spike train between n=numNeurons bins, and adjust time of each spike so that start of bin is treated as absolute time
 
