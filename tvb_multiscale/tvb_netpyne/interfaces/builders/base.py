@@ -37,6 +37,13 @@ class TVBNetpyneInterfaceBuilder(TVBSpikeNetInterfaceBuilder):
     # We return from a Spiking Network multimeter or voltmeter the membrane potential in mV
     w_potential_to_tvb = 1.0
 
+    def __init__(self, tvb_simulator, netpyne_network, netpyne_nodes_ids, exclusive_nodes=False,
+                 tvb_to_netpyne_interfaces=None, netpyne_to_tvb_interfaces=None, populations_sizes=[100, 100]):
+
+        super(TVBNetpyneInterfaceBuilder, self).__init__(tvb_simulator, netpyne_network, netpyne_nodes_ids, exclusive_nodes,
+                                                      tvb_to_netpyne_interfaces, netpyne_to_tvb_interfaces)
+        self.netpyne_instance.tvbSimulator = tvb_simulator
+
     @property
     def netpyne_instance(self):
         return self.spiking_network.netpyne_instance

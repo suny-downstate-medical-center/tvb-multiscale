@@ -5,8 +5,8 @@ from tvb_multiscale.core.spiking_models.builders.factory import build_and_connec
 
 from tvb_multiscale.tvb_netpyne.netpyne_models.network import NetpyneNetwork
 from tvb_multiscale.tvb_netpyne.netpyne_models.population import NetpynePopulation
-from tvb_multiscale.tvb_netpyne.ext.NodeCollection import NodeCollection
-from tvb_multiscale.tvb_netpyne.ext.instance import NetpyneInstance
+from tvb_multiscale.tvb_netpyne.netpyne.NodeCollection import NodeCollection
+from tvb_multiscale.tvb_netpyne.netpyne.instance import NetpyneInstance
 from tvb_multiscale.tvb_netpyne.config import CONFIGURED, initialize_logger
 
 from tvb_multiscale.tvb_netpyne.netpyne_models.builders.netpyne_factory import create_device, connect_device
@@ -27,12 +27,13 @@ class NetpyneNetworkBuilder(SpikingNetworkBuilder):
         self.netpyne_instance = netpyne_instance
         self._spiking_brain =  NetpyneBrain()
 
-        # simulation_length os CoSimulator may not have been initialized at this point, so need to defer setting it to NetPyNE:
-        self._get_simulation_duration_func = lambda: tvb_simulator.simulation_length
-
     def configure(self):
+        if self.config is None:
+            self.config = CONFIGURED
+        if self.logger is None:
+            self.logger = initialize_logger(__name__, config=self.config)
         super(NetpyneNetworkBuilder, self).configure()
-        self.netpyne_instance = NetpyneInstance(self.spiking_dt, self._get_simulation_duration_func)
+        self.netpyne_instance = NetpyneInstance(self.spiking_dt)
         # TODO: maybe check here that all neede .mod files compiled? Run nrnivmodl if no.
 
     def configureCells(self):
@@ -72,7 +73,7 @@ class NetpyneNetworkBuilder(SpikingNetworkBuilder):
         size = int(np.round(size))
 
         collection = NodeCollection(brain_region, label, size)
-        population = NetpynePopulation(collection, self, label, model, brain_region)
+        population = NetpynePopulation(collection, self.netpyne_instance, label, model, brain_region)
 
         print(f"Netpyne:: Creating population '{population.global_label}' of {size} neurons of type '{model}'.")
         self.netpyne_instance.registerPopulation(population.global_label, model, size)
@@ -130,6 +131,7 @@ class NetpyneNetworkBuilder(SpikingNetworkBuilder):
         """
         super().build_spiking_brain()
 
+        # create artificial cells serving as stimuly (population per each mean-field region)
         for region in self.region_labels:
             if region not in self.spiking_nodes_labels:
                 label = self.state_variable + " - " + region # TODO: de-hardcode/workaround this composition? Make sure self.population_order below is precise enough
@@ -140,5 +142,5 @@ class NetpyneNetworkBuilder(SpikingNetworkBuilder):
 
     def build_spiking_network(self):
         """A method to build the final NetpyneNetwork class based on the already created constituents."""
-        return NetpyneNetwork(self.netpyne_instance, self._spiking_brain,
-                           self._output_devices, self._input_devices, config=self.config)
+        return NetpyneNetwork(self.netpyne_instance, self.state_variable, self._spiking_brain,
+                              self._output_devices, self._input_devices, config=self.config)

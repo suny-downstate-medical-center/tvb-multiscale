@@ -6,7 +6,7 @@ import numpy as np
 
 from tvb.basic.profile import TvbProfile
 
-from tvb_multiscale.tvb_netpyne.ext.instance import NetpyneCellGeometry, NetpyneCellModel, NetpyneMechanism
+from tvb_multiscale.tvb_netpyne.netpyne.data_structures import NetpyneCellGeometry, NetpyneCellModel, NetpyneMechanism
 TvbProfile.set_profile(TvbProfile.LIBRARY_PROFILE)
 
 from tvb_multiscale.tvb_netpyne.config import *
@@ -125,7 +125,7 @@ for id in range(number_of_regions):
         spiking_nodes_ids.append(id)
 
 # originally - WWDeco2014Builder        
-from tvb_multiscale.tvb_netpyne.netpyne_models.builders.models.default_exc_io_inh_i import DefaultExcIOInhIBuilder
+from tvb_multiscale.tvb_netpyne.netpyne_models.models.default_exc_io_inh_i import DefaultExcIOInhIBuilder
 
 # Build a NetPyNE network model with the corresponding builder
 netpyne_network_builder = DefaultExcIOInhIBuilder(simulator, spiking_nodes_ids, config=config)
@@ -159,7 +159,7 @@ N_I = int(netpyne_network_builder.population_order * netpyne_network_builder.sca
 netpyne_network_builder.global_coupling_scaling = \
     netpyne_network_builder.tvb_serial_sim["coupling.a"][0].item() * \
     netpyne_network_builder.tvb_serial_sim["model.G"][0].item()
-netpyne_network_builder.lamda = netpyne_network_builder.tvb_serial_sim["model.lamda"][0].item()
+netpyne_network_builder.lamda = netpyne_network_builder.tvb_serial_sim["model.lamda"][0].item() # TODO: this lamda can be used somehow for more proper calculation of coupling?
 
 
 # When any of the properties params and scale below depends on regions,
@@ -282,7 +282,7 @@ netpyne_network_builder.populations_connections = [
 from tvb_multiscale.core.spiking_models.builders.templates import tvb_delay, tvb_weight, scale_tvb_weight
 from tvb_multiscale.tvb_netpyne.netpyne_models.builders.netpyne_templates import random_uniform_tvb_delay
     
-lamda = netpyne_network_builder.tvb_serial_sim["model.lamda"][0]
+lamda = netpyne_network_builder.lamda
 tvb_to_netpyne_weight_scaling = 10.0 # This value doesn't seem to have any theoretical meaning in itself. Rather it should be picked up by trial and error to make synaptic strength of connections between spiking nodes and mean-field nodes be biologically plausible.
 
 # from 1:24:12
@@ -370,7 +370,7 @@ netpyne_network = netpyne_network_builder.build(set_defaults=False) # or true, i
 # 3. Build the TVB-NetPyNE interface
 ##################################################################################################################
 
-from tvb_multiscale.tvb_netpyne.interfaces.builders.models.default import DefaultInterfaceBuilder 
+from tvb_multiscale.tvb_netpyne.interfaces.models.builders.default import DefaultInterfaceBuilder
 
 # Build a TVB-NetPyNE interface with all the appropriate connections between the
 # TVB and NetPyNE modelled regions
@@ -395,9 +395,7 @@ from tvb_multiscale.tvb_netpyne.netpyne_models.builders.netpyne_templates \
     import random_normal_tvb_weight, random_uniform_tvb_delay, receptor_by_source_region
 
 lamda = netpyne_network_builder.tvb_serial_sim["model.lamda"][0].item()
-G = netpyne_network_builder.tvb_serial_sim["model.G"][0].item()
-# tvb_netpyne_builder.global_coupling_scaling = G * netpyne_network_builder.tvb_serial_sim["coupling.a"][0].item()
-tvb_netpyne_builder.global_coupling_scaling = netpyne_network_builder.global_coupling_scaling # this is what video says. original version is commented out above
+tvb_netpyne_builder.global_coupling_scaling = netpyne_network_builder.global_coupling_scaling
 
 # TVB -> NetPyNE
 

@@ -42,14 +42,8 @@ or in their source_nodes and target_nodes ranges
 """
 
 def random_normal_weight(weight, scale=1.0, sigma=0.1):
-    if weight == 0:
-        return 0
-    if scale != 1.0:
-        weight *= scale
-    # TODO: are param. names correct?
-    return {"distribution": "normal", 
-            "mu": weight, 
-            "sigma": sigma * np.abs(weight)}
+    w = weight * scale
+    return f"max(0.0, normal({w}, {w * sigma}))"
 
 def random_normal_tvb_weight(source_node, target_node, tvb_weights, scale=1.0, sigma=0.1):
     return random_normal_weight(tvb_weight(source_node, target_node, tvb_weights), scale, sigma)
@@ -62,8 +56,7 @@ def random_uniform_delay(delay, low=0.0, high=1.0, sigma=0.1):
         high = np.maximum(high, (1 + sigma) * delay)
     if high <= low:
         raise ValueError("Maximum delay %f is not larger than the minimum one %f!" % (high, low))
-    return {"distribution": "uniform", "low": low, "high": high}
-
+    return f"uniform({low}, {high})"
 
 def random_uniform_tvb_delay(source_node, target_node, tvb_delays, low=0.0, high=1.0, sigma=0.1):
     return random_uniform_delay(tvb_delay(source_node, target_node, tvb_delays), low, high, sigma)

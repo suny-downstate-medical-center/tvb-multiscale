@@ -1,7 +1,8 @@
 from tvb_multiscale.core.spiking_models.network import SpikingNetwork
-from tvb_multiscale.tvb_netpyne.ext.instance import NetpyneInstance
+from tvb_multiscale.tvb_netpyne.netpyne.instance import NetpyneInstance
 
 from tvb_multiscale.tvb_netpyne.config import CONFIGURED, initialize_logger
+from tvb_multiscale.tvb_netpyne.netpyne_models.devices import NetpyneOutputSpikeDeviceDict
 
 class NetpyneNetwork(SpikingNetwork):
 
@@ -23,12 +24,16 @@ class NetpyneNetwork(SpikingNetwork):
 
     netpyne_instance = None
 
+    _OutputSpikeDeviceDict = NetpyneOutputSpikeDeviceDict
+
     def __init__(self, netpyne_instance,
+                 state_variable,
                  brain_regions=None,
                  output_devices=None,
                  input_devices=None,
                  config=CONFIGURED):
         self.netpyne_instance = netpyne_instance
+        self.state_variable = state_variable
         super(NetpyneNetwork, self).__init__(brain_regions, output_devices, input_devices, config)
 
     @property

@@ -1,5 +1,4 @@
 from random import randint, uniform
-# from ANNarchy.core.Simulate import simulate
 import netpyne
 import numpy as np
 from numpy.core.fromnumeric import shape
@@ -8,48 +7,11 @@ from numpy.lib.utils import source
 from netpyne import specs, sim
 from netpyne.sim import *
 
-class NetpyneCellGeometry(object):
-
-    def __init__(self, diam, length, axialResistance) :
-        self.diam = diam
-        self.length = length
-        self.axialR = axialResistance
-
-    def toDict(self):
-        return {'diam': self.diam, 'L': self.length, 'Ra': self.axialR}
-
-class NetpyneMechanism(object):
-
-    def __init__(self, name, gNaBar, gKBar, gLeak, eLeak):
-        self.name = name
-        self.gNaBar = gNaBar
-        self.gKBar = gKBar
-        self.gLeak = gLeak
-        self.eLeak = eLeak
-
-    def toDict(self):
-        return {'gnabar': self.gNaBar, 'gkbar': self.gKBar, 'gl': self.gLeak, 'el': self.eLeak}
-
-class NetpyneCellModel(object):
-
-    def __init__(self, name, geom, mech):
-        self.name = name
-        self.geom = geom
-        self.mech = mech
-
-    def geometry(self):
-        return self.geom.toDict()
-
-    def getMech(self):
-        return self.mech.name, self.mech.toDict()
-
-
 class NetpyneInstance(object):
     
-    def __init__(self, dt, simDurationFunc):
+    def __init__(self, dt):
 
         self.dt = dt
-        self.simDurationFunc = simDurationFunc
 
         self.spikingPopulationLabels = []
 
@@ -59,7 +21,7 @@ class NetpyneInstance(object):
         self.netParams.cellParams['art_NetStim'] = {'cellModel': 'DynamicNetStim'}
 
         ## Synaptic mechanism parameters
-        # hia: de-hardcode 'em
+        #TODO: de-hardcode syn params
         self.netParams.synMechParams['exc'] = {'mod': 'Exp2Syn', 'tau1': 0.8, 'tau2': 5.3, 'e': 0}  # NMDA
         self.netParams.synMechParams['inh'] = {'mod': 'Exp2Syn', 'tau1': 0.6, 'tau2': 8.5, 'e': -75}  # GABA
 
@@ -70,10 +32,8 @@ class NetpyneInstance(object):
         # simConfig.verbose = True
 
         simConfig.recordTraces = {'V_soma':{'sec':'soma','loc':0.5,'var':'v'}}  # Dict with traces to record
-        simConfig.analysis['plotTraces'] =  {'include': [('parahippocampal_L.E', [0, 10, 20, 30, 40]), ('parahippocampal_L.I', [0, 10, 20, 30, 40])], 'saveFig': True}
-        simConfig.analysis['plotRaster'] = {'include': ['parahippocampal_L.E', 'parahippocampal_L.I'], 'saveFig': True} 
         
-        simConfig.recordStep = np.min(1.0, dt * 10)
+        simConfig.recordStep = 0.1
         simConfig.savePickle = False        # Save params, network and sim output to pickle file
         simConfig.saveJson = False
 
@@ -94,17 +54,20 @@ class NetpyneInstance(object):
         return self.dt
 
     def createCells(self):
-        self.simConfig.recordCellsSpikes = self.spikingPopulationLabels # to exclude stimuli-cells
-
-        sim.initialize(self.netParams, self.simConfig)  # create network object and set cfg and net params
-        sim.net.createPops()                  # instantiate network populations
-        sim.net.createCells()                 # instantiate network cells based on defined populations
+        # This has to be done beforehands, because TVB will immediately require from us to provide some cells ids
+        sim.initialize(self.netParams, None) # simConfig to be provided later
+        sim.net.createPops()
+        sim.net.createCells()
+        # The rest of initialization will be done later, once all external regions are connected
     
     def createAndPrepareNetwork(self): # TODO: bad name?
-        sim.cfg.duration = self.simDurationFunc()
+        
+        self.__equipSimConfigWithFinalData(self.simConfig)
 
+        sim.setSimCfg(self.simConfig)
         sim.setNetParams(self.netParams)
 
+        print(sim.net)
         sim.net.connectCells()
         sim.net.addStims()
         sim.net.addRxD()
@@ -112,14 +75,29 @@ class NetpyneInstance(object):
 
         prepareContinuousRun()
 
-    def connectStimuli(self, sourcePop, targetPop, weight, delay, receptorType, scale):
+    def __equipSimConfigWithFinalData(self, simConfig):
+        simConfig.recordCellsSpikes = self.spikingPopulationLabels # to exclude stimuli-cells
+        simConfig.duration = self.tvbSimulator.simulation_length
 
-        # first create artificial cells serving as stimulus, one per each target cell
+        # choose N random cells from each population to plot traces for
+        n = 5
+        rnd = np.random.RandomState(0)
+        def includeFor(pop):
+            popSize = len(sim.net.pops[pop].cellGids)
+            chosen = (pop, rnd.choice(popSize, size=min(n, popSize), replace=False).tolist())
+            return chosen
+        include = list(map(includeFor, self.spikingPopulationLabels))
+
+        simConfig.analysis['plotTraces'] = {'include': include, 'saveFig': True}
+        simConfig.analysis['plotRaster'] = {'include': self.spikingPopulationLabels, 'saveFig': True}
+
+    def connectStimuli(self, sourcePop, targetPop, weight, delay, receptorType, scale):
 
         sourceCells = self.netParams.popParams[sourcePop]['numCells']
         targetCells = self.netParams.popParams[targetPop]['numCells']
 
-        # one-to-one connection, scaled by 'lamda' of connectivity (TVB-defined scale)
+        # one-to-one connection, multiplied by TVB-defined scale ('lamda' for E->I connection is also baked into this scale)
+        # TODO: but need to polish that
         prob = 1.0 / sourceCells
         prob *= scale
 
@@ -135,15 +113,13 @@ class NetpyneInstance(object):
 
     def interconnectSpikingPopulations(self, sourcePopulation, targetPopulation, synapticMechanism, weight, delay, probabilityOfConn):
 
-        delayFunc = 'max(1, normal(' + str(delay) + ',2))'
-
         label = sourcePopulation + "->" + targetPopulation
         self.netParams.connParams[label] = {
-            'preConds': {'pop': sourcePopulation},       # conditions of presyn cells
-            'postConds': {'pop': targetPopulation},      # conditions of postsyn cells
+            'preConds': {'pop': sourcePopulation},
+            'postConds': {'pop': targetPopulation},
             'probability': probabilityOfConn,
             'weight': weight,
-            'delay': delayFunc,
+            'delay': delay,
             'synMech': synapticMechanism }
 
     def registerPopulation(self, label, cellModel, size):

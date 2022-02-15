@@ -60,7 +60,7 @@ class NetpyneDevice(HasTraits):
                    Default = None, corresponds to all nodes.
         """
         if self.model == "poisson_generator":
-            rate = values_dict['rates'][0]
+            rate = values_dict['rates']
             dt = values_dict['dt']
             self.netpyne_instance.applyFiringRate(rate, self.label, dt)
         else:

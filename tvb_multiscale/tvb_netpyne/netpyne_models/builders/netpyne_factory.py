@@ -4,7 +4,7 @@ from tvb.contrib.scripts.utils.log_error_utils import raise_value_error
 
 from tvb_multiscale.tvb_netpyne.config import CONFIGURED
 from tvb_multiscale.tvb_netpyne.netpyne_models.devices import NetpyneInputDeviceDict, NetpyneOutputDeviceDict
-from tvb_multiscale.tvb_netpyne.ext.instance import NetpyneInstance
+from tvb_multiscale.tvb_netpyne.netpyne.instance import NetpyneInstance
 
 def create_device(device_model, params={}, config=CONFIGURED, netpyne_instance=None, **kwargs):
     """Method to create a NetpynDevice.
@@ -65,9 +65,7 @@ def connect_device(netpyne_device, population, neurons_inds_fun, weight=1.0, del
     spiking_population_label = population.global_label
     if netpyne_device.model in config.NETPYNE_INPUT_DEVICES_PARAMS_DEF:
 
-        if neurons_inds_fun is not None:
-            print(neurons_inds_fun())
-        scale = kwargs.pop("connectivity_scale", 1.0)
+        scale = kwargs.pop("connectivity_scale", 1.0) # TODO: better way to pass scale?
         print(f"Netpyne:: will connect input device {netpyne_device.model}. {netpyne_device.label} -> {spiking_population_label} (w: {weight})")
         netpyne_instance.connectStimuli(sourcePop=netpyne_device.label, targetPop=spiking_population_label, weight=weight, delay=delay, receptorType=receptor_type, scale=scale)
     elif netpyne_device.model in config.NETPYNE_OUTPUT_DEVICES_PARAMS_DEF:

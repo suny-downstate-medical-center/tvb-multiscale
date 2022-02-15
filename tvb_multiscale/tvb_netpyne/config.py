@@ -1,7 +1,7 @@
-from tvb_multiscale.core.config import Config as BaseConfig
+from tvb_multiscale.core.config import Config as ConfigBase
 from tvb_multiscale.core.utils.log_utils import initialize_logger as initialize_logger_base
 
-class Config(BaseConfig):
+class Config(ConfigBase):
     
     DEFAULT_MODEL = "default_model_placeholder" # TODO: what's the default model?
 
@@ -23,7 +23,7 @@ class Config(BaseConfig):
 
 CONFIGURED = Config(initialize_logger=False)
 
-def initialize_logger(name, target_folder=None):
+def initialize_logger(name="tvb_netpyne", target_folder=None, config=CONFIGURED):
     if target_folder is None:
         target_folder = Config().out.FOLDER_LOGS
     return initialize_logger_base(name, target_folder)
