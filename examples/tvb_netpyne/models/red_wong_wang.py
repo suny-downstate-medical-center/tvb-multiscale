@@ -15,7 +15,7 @@ def excio_inhi_example(**kwargs):
     # params["spiking_proxy_inds"] = [0, 1]
 
     netpyne_network_builder = ThalamicVIMBuilder()
-    params["spiking_proxy_inds"] = [0]
+    params["spiking_proxy_inds"] = [46]
 
 
     kwargs.update(params)

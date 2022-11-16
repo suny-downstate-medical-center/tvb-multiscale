@@ -68,12 +68,14 @@ class NetpyneModule(object):
             self.simConfig.analysis['plotTraces'] = {'include': include, 'saveFig': True}
             self.simConfig.analysis['plotRaster'] = {'saveFig': True, 'include': self.autoCreatedPops, 'popRates': 'minimal'}
 
-        if self.simConfig.recordCellsSpikes == -1:
-            allPopsButSpikeGenerators = [pop for pop in self.netParams.popParams.keys() if pop not in self.spikeGeneratorPops]
-            self.simConfig.recordCellsSpikes = allPopsButSpikeGenerators
+            if self.simConfig.recordCellsSpikes == -1:
+                allPopsButSpikeGenerators = [pop for pop in self.netParams.popParams.keys() if pop not in self.spikeGeneratorPops]
+                self.simConfig.recordCellsSpikes = allPopsButSpikeGenerators
 
         sim.setSimCfg(self.simConfig)
         sim.setNetParams(self.netParams)
+        sim.net.params.synMechParams.preprocessStringFunctions()
+        sim.net.params.cellParams.preprocessStringFunctions()
 
         sim.net.connectCells()
         sim.net.addStims()
