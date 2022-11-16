@@ -1,4 +1,5 @@
 from tvb_multiscale.tvb_netpyne.netpyne_models.models.default_exc_io_inh_i import DefaultExcIOInhIBuilder
+from tvb_multiscale.tvb_netpyne.netpyne_models.models.thalamic_VIM_exc_io_inh_i import ThalamicVIMBuilder
 from tvb_multiscale.tvb_netpyne.interfaces.models.default import RedWongWangExcIOInhITVBNetpyneInterfaceBuilder
 
 from examples.tvb_netpyne.example import main_example
@@ -10,8 +11,12 @@ def excio_inhi_example(**kwargs):
         # "model_params": {"lamda": 0.5}
     }
 
-    netpyne_network_builder = DefaultExcIOInhIBuilder()
-    params["spiking_proxy_inds"] = [0, 1]
+    # netpyne_network_builder = DefaultExcIOInhIBuilder()
+    # params["spiking_proxy_inds"] = [0, 1]
+
+    netpyne_network_builder = ThalamicVIMBuilder()
+    params["spiking_proxy_inds"] = [0]
+
 
     kwargs.update(params)
 
