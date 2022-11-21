@@ -178,11 +178,18 @@ class NetpyneModule(object):
             while (self.nextIntervalFuncCall < tvbIterationEnd):
                 if self.time < sim.cfg.duration:
                     sim.run.runForInterval(self.nextIntervalFuncCall - self.time, _)
-                self.intervalFunc(self.time)
-                self.nextIntervalFuncCall += self.interval
+                    self.intervalFunc(self.time)
+                    self.nextIntervalFuncCall = self.time + self.interval
+                else:
+                    break
         if tvbIterationEnd > self.time:
             if self.time < sim.cfg.duration:
                 sim.run.runForInterval(tvbIterationEnd - self.time, _)
+
+                if self.nextIntervalFuncCall:
+                    # add correction to avoid accumulation of arithmetic error due to that h.t advances slightly more than the requested interval
+                    correction = self.time - tvbIterationEnd
+                    self.nextIntervalFuncCall += correction
 
     def stimulate(self, length):
         allNeuronsSpikes = {}
