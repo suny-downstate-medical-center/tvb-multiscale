@@ -175,13 +175,10 @@ class NetpyneModule(object):
         tvbIterationEnd = self.time + length
         def _(simTime): pass
         if self.nextIntervalFuncCall:
-            while (self.nextIntervalFuncCall < tvbIterationEnd):
-                if self.time < sim.cfg.duration:
-                    sim.run.runForInterval(self.nextIntervalFuncCall - self.time, _)
-                    self.intervalFunc(self.time)
-                    self.nextIntervalFuncCall = self.time + self.interval
-                else:
-                    break
+            while (self.nextIntervalFuncCall < min(tvbIterationEnd, sim.cfg.duration)):
+                sim.run.runForInterval(self.nextIntervalFuncCall - self.time, _)
+                self.intervalFunc(self.time)
+                self.nextIntervalFuncCall = self.time + self.interval
         if tvbIterationEnd > self.time:
             if self.time < sim.cfg.duration:
                 sim.run.runForInterval(tvbIterationEnd - self.time, _)
