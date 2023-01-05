@@ -2,19 +2,26 @@
 
 from tvb_multiscale.tvb_netpyne.interfaces.models.wilson_cowan import WilsonCowanTVBNetpyneInterfaceBuilder
 from tvb_multiscale.tvb_netpyne.netpyne_models.models.wilson_cowan import WilsonCowanBuilder
+from tvb_multiscale.tvb_netpyne.netpyne_models.models.thalamic_VIM_exc_io_inh_i import WilsonCowanThalamicVIMBuilder
 
 from examples.tvb_netpyne.example import main_example
 from examples.models.wilson_cowan import wilson_cowan_example as wilson_cowan_example_base
 
 
 def wilson_cowan_example(**kwargs):
-    # model_params = {"model_params": {"lamda": 0.5}}
-    # kwargs.update(model_params)
+    params = {
+        "simulation_length": 500,
+        # "model_params": {"lamda": 0.5}
+    }
 
-    netpyne_model_builder = WilsonCowanBuilder()
+    # netpyne_model_builder = WilsonCowanBuilder()
+    netpyne_network_builder = WilsonCowanThalamicVIMBuilder()
+    params["spiking_proxy_inds"] = [46]
+
+    kwargs.update(params)
+
     tvb_netpyne_interface_builder = WilsonCowanTVBNetpyneInterfaceBuilder()
-
-    return main_example(wilson_cowan_example_base, netpyne_model_builder, tvb_netpyne_interface_builder, **kwargs)
+    return main_example(wilson_cowan_example_base, netpyne_network_builder, tvb_netpyne_interface_builder, **kwargs)
 
 
 if __name__ == "__main__":

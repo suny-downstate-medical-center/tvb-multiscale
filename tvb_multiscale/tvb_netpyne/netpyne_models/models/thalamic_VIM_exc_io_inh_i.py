@@ -16,8 +16,8 @@ class ThalamicVIMBuilder(NetpyneNetworkBuilder):
             # presuming that network is cloned to ./tvb_multiscale/tvb_netpyne/netpyne_models/models/thalamic_VIM_ET
             from .thalamic_VIM_ET.src.netParams import netParams
             from .thalamic_VIM_ET.src.cfg import cfg
-        except ModuleNotFoundError:
-            raise Exception('Spiking network should be cloned locally and imported here as `netParams` and `cfg`')
+        except ModuleNotFoundError as e:
+            raise Exception(f'Spiking network should be cloned locally and imported here as `netParams` and `cfg` (error: {e})')
 
         # for external stimuli
         self.synMechE = 'exc'
@@ -81,3 +81,12 @@ class ThalamicVIMBuilder(NetpyneNetworkBuilder):
         if set_defaults:
             self.set_defaults()
         return super(ThalamicVIMBuilder, self).build()
+
+class WilsonCowanThalamicVIMBuilder(ThalamicVIMBuilder):
+
+    def __init__(self, tvb_simulator={}, spiking_nodes_inds=[], netpyne_instance=None,
+                 config=None, logger=None):
+        super(WilsonCowanThalamicVIMBuilder, self).__init__(tvb_simulator, spiking_nodes_inds, netpyne_instance, config, logger)
+
+    def set_defaults(self, **kwargs):
+        super(WilsonCowanThalamicVIMBuilder, self).set_defaults()
