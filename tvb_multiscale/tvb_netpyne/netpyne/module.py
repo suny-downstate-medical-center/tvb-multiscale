@@ -58,7 +58,7 @@ class NetpyneModule(object):
 
         if len(self.autoCreatedPops):
             # choose N random cells from each population to plot traces for
-            n = 3
+            n = 1
             rnd = np.random.RandomState(0)
             def includeFor(pop):
                 popSize = len(sim.net.pops[pop].cellGids)
