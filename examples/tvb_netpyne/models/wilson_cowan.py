@@ -16,9 +16,12 @@ def wilson_cowan_example(**kwargs):
 
     # netpyne_model_builder = WilsonCowanBuilder()
     netpyne_network_builder = WilsonCowanThalamicVIMBuilder()
-    params["spiking_proxy_inds"] = [46]
+    params["spiking_proxy_inds"] = [8, 8, 379, 371, 361] #M1R, PMC, brainstem, thalamusR, cerebellumL, muscle
 
     kwargs.update(params)
+    
+    # connectivity using glasser parcellation
+    kwargs['connectivity'] = '/path/to/Glasser/connectivity'
 
     tvb_netpyne_interface_builder = WilsonCowanTVBNetpyneInterfaceBuilder()
     return main_example(wilson_cowan_example_base, netpyne_network_builder, tvb_netpyne_interface_builder, **kwargs)
