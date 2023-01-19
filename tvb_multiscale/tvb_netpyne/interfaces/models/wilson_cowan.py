@@ -26,3 +26,5 @@ class WilsonCowanTVBNetpyneInterfaceBuilder(WilsonCowanNetpyneProxyNodesBuilder,
 
     def default_input_config(self):
         WilsonCowanTVBSpikeNetInterfaceBuilder.default_input_config(self)
+        # TODO: move to dedicated subclass
+        self.input_interfaces[1]['spiking_proxy_inds'] = [8, 361] # M1, cerebellar cortex

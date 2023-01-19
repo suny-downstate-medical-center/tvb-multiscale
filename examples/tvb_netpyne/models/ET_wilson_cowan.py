@@ -20,12 +20,20 @@ def wilson_cowan_example(**kwargs):
     kwargs.update(params)
     
     #TVB (Glasser parcellation) regions to be substituted with spiking populations (netpyne pops)
-    params["spiking_proxy_inds"] = [8, 379, 371, 361] #M1R (8), PMC (8), brainstem (379), thalamusR (371), cerebellumL (361), muscle (NA)   ###DEFAULT[50, 58,] #50:precentral_R, 58:superiofrontal_R (taken as temp proxy for premotor cortex)
-    #spiking_nodes_ids = [8, 379, 371, 361]
-    netpyne_network_builder.primary_motor_cortex_R = [8]
-    netpyne_network_builder.brainstem = [379]
-    netpyne_network_builder.thalamus_R = [371]
-    netpyne_network_builder.cerebellar_cortex_L = [361]
+    #M1R (8), PMC (8), brainstem (379), thalamusR (371), cerebellumL (361), muscle (NA)   ###DEFAULT[50, 58,] #50:precentral_R, 58:superiofrontal_R (taken as temp proxy for premotor cortex)
+
+    netpyne_network_builder.primary_motor_cortex_R = 8
+    netpyne_network_builder.cerebellar_cortex_L = 361
+    netpyne_network_builder.thalamus_R = 371
+    netpyne_network_builder.brainstem = 379
+
+    params["spiking_proxy_inds"] = [
+        netpyne_network_builder.primary_motor_cortex_R,
+        netpyne_network_builder.cerebellar_cortex_L,
+        netpyne_network_builder.thalamus_R,
+        netpyne_network_builder.brainstem,
+    ]
+    kwargs.update(params)
 
     # NetPyNE model built already: including populations, connections, stimulation, recording
 
@@ -50,5 +58,3 @@ def wilson_cowan_example(**kwargs):
 
 if __name__ == "__main__":
     wilson_cowan_example()
-
-# TEST

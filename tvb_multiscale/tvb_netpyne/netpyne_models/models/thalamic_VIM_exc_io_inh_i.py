@@ -40,42 +40,55 @@ class ThalamicVIMBuilder(NetpyneNetworkBuilder):
 
     def set_defaults(self):
         self.set_populations()
-        self.set_output_devices()
+        # self.set_output_devices()
 
     def set_populations(self):
+
+        spikingPopsE = {
+            self.primary_motor_cortex_R: 'PY_pop',
+            self.brainstem: 'ION_pop',
+            self.thalamus_R: 'TC_pop',
+            self.cerebellar_cortex_L: 'GrC_pop'
+        }
+
+        spikingPopsI = {
+            self.primary_motor_cortex_R: 'FSI_pop',
+            self.cerebellar_cortex_L: 'PC_pop'
+        }
+
         self.populations = [
             {
                 "label": "E", "model": None, # 'model' not used, as it is needed only in case of autoCreateSpikingNodes is True
                 "nodes": None,  # None means "all"
-                "params": {"global_label": "PY_pop"}, # population of spiking network to be interfaced with excitatory population of TVB node
+                "params": lambda node_id: {"global_label": spikingPopsE[node_id]},# {"global_label": "PY_pop"}, # population of spiking network to be interfaced with excitatory population of TVB node
                 "scale": self.scale_e,
             },
             {
                 "label": "I", "model": None,
-                "nodes": None,  # None means "all"
-                "params": {'global_label': 'FSI_pop'}, # population of spiking network to be interfaced with inhibitory population of TVB node
+                "nodes": [self.primary_motor_cortex_R, self.cerebellar_cortex_L],
+                "params": lambda node_id: {"global_label": spikingPopsI[node_id]}, # population of spiking network to be interfaced with inhibitory population of TVB node
                 "scale": self.scale_i
-            }
+            },
         ]
 
+    # TODO: seems to be renundant, having input_interfaces in TVBNetpyneInterfaceBuilder?
+    # def set_output_devices(self):
+    #     # Creating  devices to be able to observe NetPyNE activity:
+    #     # Labels have to be different
+    #     self.output_devices = [self.set_spike_recorder()]
 
-    def set_output_devices(self):
-        # Creating  devices to be able to observe NetPyNE activity:
-        # Labels have to be different
-        self.output_devices = [self.set_spike_recorder()]
-
-    def set_spike_recorder(self):
-        connections = OrderedDict()
-        # Keys are arbitrary. Value is either 'E' or 'I' for this model, and will be matched with items in self.populations dict
-        connections["E"] = "E"
-        connections["I"] = "I"
-        params = self.config.NETPYNE_OUTPUT_DEVICES_PARAMS_DEF["spike_recorder"].copy()
-        # params["record_to"] = self.output_devices_record_to
-        device = {"model": "spike_recorder", "params": params,
-                #   "neurons_fun": lambda node_id, population: population[:np.minimum(100, len(population))],
-                  "connections": connections, "nodes": None}  # None means all here
-        # device.update(self.spike_recorder)
-        return device
+    # def set_spike_recorder(self):
+    #     connections = OrderedDict()
+    #     # Keys are arbitrary. Value is either 'E' or 'I' for this model, and will be matched with items in self.populations dict
+    #     connections["E"] = "E"
+    #     connections["I"] = "I"
+    #     params = self.config.NETPYNE_OUTPUT_DEVICES_PARAMS_DEF["spike_recorder"].copy()
+    #     # params["record_to"] = self.output_devices_record_to
+    #     device = {"model": "spike_recorder", "params": params,
+    #             #   "neurons_fun": lambda node_id, population: population[:np.minimum(100, len(population))],
+    #               "connections": connections, "nodes": None}  # None means all here
+    #     # device.update(self.spike_recorder)
+    #     return device
 
     def build(self, set_defaults=True):
         if set_defaults:
