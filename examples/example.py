@@ -7,8 +7,10 @@ import numpy as np
 
 from tvb.basic.profile import TvbProfile
 TvbProfile.set_profile(TvbProfile.LIBRARY_PROFILE)
+# # # IMPORT CONFIG FROM APPROPRIATE INSTALLATION # # #
+#from tvb_multiscale.tvb_nest.config import Config, CONFIGURED, initialize_logger
 
-from tvb_multiscale.tvb_nest.config import Config, CONFIGURED, initialize_logger
+from tvb_multiscale.tvb_netpyne.config import Config, CONFIGURED, initialize_logger
 from tvb_multiscale.core.tvb.cosimulator.models.linear import Linear
 from tvb_multiscale.core.plot.plotter import Plotter
 

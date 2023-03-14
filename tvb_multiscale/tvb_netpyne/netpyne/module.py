@@ -3,6 +3,11 @@ import numpy as np
 from netpyne import specs, sim
 from netpyne.sim import *
 
+# performance with time
+import time
+import logging
+
+logger = logging.getLogger('benchmark')
 
 class NetpyneModule(object):
 
@@ -139,6 +144,7 @@ class NetpyneModule(object):
         }
 
     def getSpikes(self, generatedBy=None, startingFrom=None):
+        tic = time.time()
         spktimes = np.array(sim.simData['spkt'])
         spkgids = np.array(sim.simData['spkid'])
 
@@ -153,6 +159,7 @@ class NetpyneModule(object):
 
             spktimes = spktimes[inds]
             spkgids = spkgids[inds]
+        logger.log(level=200, msg="getSpikes, {}".format(time.time() - tic))
         return spktimes, spkgids
     
     def cellGidsForPop(self, popLabel):
@@ -168,6 +175,7 @@ class NetpyneModule(object):
         return gids
 
     def run(self, length):
+        tic = time.time()
 
         self.stimulate(length)
 
@@ -190,8 +198,10 @@ class NetpyneModule(object):
                     # add correction to avoid accumulation of arithmetic error due to that h.t advances slightly more than the requested interval
                     correction = self.time - tvbIterationEnd
                     self.nextIntervalFuncCall += correction
+        logger.log(level=200, msg="run, {}".format(time.time() - tic))
 
     def stimulate(self, length):
+        tic = time.time()
         allNeuronsSpikes = {}
         allNeurons = []
         for device in self.spikeGenerators:
@@ -209,6 +219,7 @@ class NetpyneModule(object):
             for i, spike in enumerate(spikes[:3]):
                 spks[i] = spike
             sim.net.cells[gid].hPointp.set_next_spikes(intervalEnd, spks[0], spks[1], spks[2])
+        logger.log(level=200, msg="stimulate, {}".format(time.time() - tic))
 
     def finalize(self):
         if self.time < sim.cfg.duration:
