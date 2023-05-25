@@ -9,7 +9,7 @@ TvbProfile.set_profile(TvbProfile.LIBRARY_PROFILE)
 
 from tvb_multiscale.tvb_netpyne.config import *
 
-work_path = os.getcwd()
+work_path = "/home/docker/packages/tvb-multiscale/examples/tvb_netpyne/notebooks" #os.getcwd()
 data_path = os.path.expanduser("~/packages/tvb-multiscale/examples/data/basal_ganglia")
 fit_data_path = os.path.join(data_path, "ANNarchyFittedModels/dataFits_2020_02_05/databestfits", )
 data_mode = "patient" # "control", or "patient"
@@ -41,7 +41,7 @@ init_cond_jitter = 0.0
 SPIKING_NODES_DELAYS = False
 
 simulation_mode = "rs"         # "stim" or "rs"
-stim_target = "GPi"            #     "STN",        "GPi"
+stim_target = "PY_pop"            #     "PY_pop",        "TC_pop"
 stim_mode = "simple"           # "bi"  | "mono" | "simple"
                                # -------------------------
 stim_freq = 0.0                # 130.0 |  120.0 |    0.0 
@@ -180,7 +180,7 @@ loadedParams ={'dSNGPi_probs': probs_maith[0],
     	'CtxICtxI_weights'  : weights_maith[18],
         'CtxThal_weights': 0.0,
         'CtxThal_probs': 1.0}
-print(loadedParams)
+#print(loadedParams)
 
 assert_loadedParams = dict(zip(loadedParams.values(), loadedParams.keys()))
 
@@ -200,8 +200,8 @@ inds_Pall = (rlTVB.tolist().index("Pallidum_L"), rlTVB.tolist().index("Pallidum_
 inds_Put = (rlTVB.tolist().index("Putamen_L"), rlTVB.tolist().index("Putamen_R"))
 inds_Caud = (rlTVB.tolist().index("Caudate_L"), rlTVB.tolist().index("Caudate_R"))
 inds_rm = inds_Th + inds_Pall + inds_Put + inds_Caud
-print("Connections of Thalami, Pallidum (GPe/i), Putamen and Caudate (Striatum) removed!:\n", 
-      wTVB[inds_rm, :][:, inds_rm])
+#print("Connections of Thalami, Pallidum (GPe/i), Putamen and Caudate (Striatum) removed!:\n", 
+wTVB[inds_rm, :][:, inds_rm]
 wTVB = np.delete(wTVB, inds_rm, axis=0)
 wTVB = np.delete(wTVB, inds_rm, axis=1)
 tlTVB = np.delete(tlTVB, inds_rm, axis=0)
@@ -216,25 +216,28 @@ sliceBG = [0, 1, 2, 3, 6, 7]
 sliceCortex = slice(10, number_of_regions)
 
 # Remove BG -> Cortex connections
-print("Removing BG -> Cortex connections with max:")
-print(wTVB[sliceCortex, :][:, sliceBG].max())
+#print("Removing BG -> Cortex connections with max:")
+#print(wTVB[sliceCortex, :][:, sliceBG].max())
 wTVB[sliceCortex, sliceBG] = 0.0
 tlTVB[sliceCortex, sliceBG] = min_tt
 
 """
 # Remove Cortex -> Thalamus connections
-#TODO: why is sliceThal = 8 & 9 here when thalamus node number is 4?
+# They need to be removed because I'm creating an interface between the TVB motor cortex and the spiking thalamus (TC_pop).
+# That will be the only/"replacement connection" between the motor cortex and the thalamus
+# TODO: add this code back. I'm keeping it for now because otherwise I get a "divide by zero" error downstream
+# TODO: why is sliceThal = 8 & 9 here when thalamus node number is 4?
 sliceThal = [8, 9]
-print("Removing Cortex -> Thalamus connections with summed weight:")
-print(wTVB[sliceThal, sliceCortex].sum())
+#print("Removing Cortex -> Thalamus connections with summed weight:")
+#print(wTVB[sliceThal, sliceCortex].sum())
 wTVB[sliceThal, sliceCortex] = 0.0
 tlTVB[sliceThal, sliceCortex] = min_tt
 """
 
 # Remove Cortex -> GPe/i connections
 sliceGP = [0, 1, 2, 3]
-print("Removing Cortex -> GPe/i connections with max:")
-print(wTVB[sliceGP, sliceCortex].max())
+#print("Removing Cortex -> GPe/i connections with max:")
+#print(wTVB[sliceGP, sliceCortex].max())
 wTVB[sliceGP,  sliceCortex] = 0.0
 tlTVB[sliceGP, sliceCortex] = min_tt
 
@@ -257,7 +260,7 @@ connLeft = Connectivity(region_labels=connTVB.region_labels[sliceLeft],
                         speed=connTVB.speed)
 connLeft.configure()
 
-print("\nLeft cortex connectome, after removing direct BG -> Cortex and intehemispheric BG <-> BG connections:")
+#print("\nLeft cortex connectome, after removing direct BG -> Cortex and interhemispheric BG <-> BG connections:")
 plotter.plot_tvb_connectivity(connLeft);
 
 sliceBGnet = slice(0,5)
@@ -268,14 +271,14 @@ connTVBleftBG = Connectivity(region_labels=connLeft.region_labels[sliceBGnet],
                             speed=connLeft.speed)
 connTVBleftBG.configure()
 
-print("\nLeft BG TVB network:")
+#print("\nLeft BG TVB network:")
 plotter.plot_tvb_connectivity(connTVBleftBG);
 
 scaleBGoptTOtvb = np.percentile(BG_opt_matrix_weights, 95) /\
                   np.percentile(connTVBleftBG.weights, 95)
                   
-print("Scaling factor of TVB BG network connectome to optimal one = %g" % scaleBGoptTOtvb)
-# confitmed: 0.000771577
+#print("Scaling factor of TVB BG network connectome to optimal one = %g" % scaleBGoptTOtvb)
+# confirmed: 0.000771577
 
 # Construct the final connectivity to use for simulation:
 # Rescale the 
@@ -288,6 +291,22 @@ connectivity = Connectivity(region_labels=connLeft.region_labels,
                             speed=connLeft.speed)
 connectivity.configure()
 
+#print("connectivity info")
+#print(connLeft.region_labels[4])
+#print(ww[4,:])
+#print(ww[:,4])
+
+print("\nFinal connectivity:")
+plotter.plot_tvb_connectivity(connectivity);
+
+import matplotlib.pyplot as plt
+
+# plot connectome weights & tract lengths
+f = plt.matshow(wTVB)
+plt.savefig(sim_mode_path+"/figs/"+"connectivity.png")
+f = plt.matshow(connLeft.tract_lengths)
+plt.savefig(sim_mode_path+"/figs/"+"tracts_lengths.png")
+
 # Construct only the optimized BG connectivity only for plotting:
 connBGopt = Connectivity(region_labels=connectivity.region_labels[sliceBGnet], 
                          centres=connectivity.centres[sliceBGnet],
@@ -295,9 +314,6 @@ connBGopt = Connectivity(region_labels=connectivity.region_labels[sliceBGnet],
                          tract_lengths=connectivity.tract_lengths[sliceBGnet][:, sliceBGnet], 
                          speed=connectivity.speed)
 connBGopt.configure()
-
-print("\nLeft BG optimized network:")
-plotter.plot_tvb_connectivity(connBGopt);
 
 from tvb_multiscale.core.tvb.cosimulator.cosimulator_serial import CoSimulatorSerial as CoSimulator
 
@@ -510,8 +526,8 @@ netpyne_network = spiking_network_builder.build() # set_defaults=False
 #print("\n\nLOOK HERE\n\n")
 #print("print(spiking_network_builder.netpyne_instance.netParams.connParams.items())")
 #print(spiking_network_builder.netpyne_instance.netParams.connParams.items())
-#for i, (connId, conn) in enumerate(spiking_network_builder.netpyne_instance.netParams.connParams.items()):
-#    print(f"{i}. {connId}: {conn.get('weight')} {conn['probability']}")
+for i, (connId, conn) in enumerate(spiking_network_builder.netpyne_instance.netParams.connParams.items()):
+    print(f"{i}. {connId}: {conn.get('weight')} {conn.get('probability')}")
 # confirmed: 13 connections between pops (weights and probs confirmed)
 
 # confirmed: 6 spike recorders, as in ANNarchy when "_ts" stuff commented out
@@ -555,56 +571,8 @@ tvb_spikeNet_model_builder.exclusive_nodes = True
 
 tvb_spikeNet_model_builder.output_interfaces = []
 tvb_spikeNet_model_builder.input_interfaces = []
-    
-# was:
-# # options for a nonopinionated builder:
-# from tvb_multiscale.core.interfaces.base.transformers.models.models import Transformers
-# from tvb_multiscale.core.interfaces.base.transformers.builders import \
-#         DefaultTVBtoSpikeNetTransformers, DefaultSpikeNetToTVBTransformers, \
-#         DefaultTVBtoSpikeNetModels, DefaultSpikeNetToTVBModels
-# from tvb_multiscale.tvb_annarchy.interfaces.builders import \
-#         TVBtoANNarchyModels, ANNarchyInputProxyModels, DefaultTVBtoANNarchyModels, \
-#         ANNarchyToTVBModels, ANNarchyOutputProxyModels, DefaultANNarchytoTVBModels
 
 from tvb_multiscale.tvb_netpyne.interfaces.builders import NetpyneInputProxyModels
-        # TVBtoNetpyneModels, 
-
-# , DefaultTVBtoNetpyneModels, \
-
-
-    
-    
-# def print_enum(enum):
-#     print("\n", enum)
-#     for name, member in enum.__members__.items():
-#         print(name,"= ", member.value)
-    
-    
-# print("Available input (NEST->TVB update) / output (TVB->NEST coupling) interface models:")
-# print_enum(TVBtoANNarchyModels)
-# print_enum(ANNarchyToTVBModels)
-    
-    
-# print("\n\nAvailable input (spikeNet->TVB update) / output (TVB->spikeNet coupling) transformer models:")
-
-# print_enum(DefaultTVBtoSpikeNetModels)
-# print_enum(DefaultTVBtoSpikeNetTransformers)
-    
-# print_enum(DefaultSpikeNetToTVBModels)
-# print_enum(DefaultSpikeNetToTVBTransformers)    
-    
-    
-# print("\n\nAvailable input (NEST->TVB update) / output (TVB->NEST coupling) proxy models:")
-
-# print_enum(DefaultTVBtoANNarchyModels)
-# print_enum(ANNarchyInputProxyModels)
-    
-# print_enum(ANNarchyOutputProxyModels)
-# print_enum(DefaultANNarchytoTVBModels)
-    
-# print("\n\nAll basic transformer models:")
-# print_enum(Transformers)
-
 
 # TVB applies a global coupling scaling of coupling.a * model.G
 tvb_spikeNet_model_builder.global_coupling_scaling = \
@@ -671,7 +639,7 @@ print("iwCtxTC = %g" % iwCtxTC)
 # iwCtxiSN = 0.0045056
 
 # ----------------------------------------------------------------------------------------------------------------
-# ----Uncomment below to modify the builder by changing the default options:--------------------------------------
+# ----------------------------------------- BUILDER --------------------------------------------------------------
 # ----------------------------------------------------------------------------------------------------------------
 
 from tvb_multiscale.core.interfaces.base.transformers.models.red_wong_wang import RedWongWangExc
@@ -686,7 +654,7 @@ from tvb_multiscale.core.interfaces.base.transformers.models.red_wong_wang impor
 if tvb_spikeNet_model_builder.default_coupling_mode == "spikeNet":
     
     # If coupling is computing in NetPyNE, we need as many TVB proxies 
-    # as TVB regions coupling to STN and Striatum
+    # as TVB regions coupling to Thalamus
     proxy_inds = np.unique(np.concatenate([CTXtoTCinds]))
     
     # This is the TVB coupling weight function that will determine the connections' weights 
@@ -724,7 +692,7 @@ for trg_pop, target_nodes, conn_scaling, this_conn_spec, scale_factor in \
                       [tvb_spikeNet_model_builder.TC_proxy_inds], 
                       # Maith et al optimized... 
                       [wCtxTC], # ...weights 
-                      # ...and probabilities for CTX -> STN/Striatum connections
+                      # ...and probabilities for CTX -> TC_pop connections
                       [conn_spec_fixed_prob(prob=pCtxTC),  # pCtxTC  
                        ], 
                       # Interface scaling factors scaled by TVB weights' indegree to TC:
@@ -739,7 +707,6 @@ for trg_pop, target_nodes, conn_scaling, this_conn_spec, scale_factor in \
              "proxy_model": NetpyneInputProxyModels.RATE,  # ANNarchyInputProxyModels.RATE_TO_SPIKES, # 
              
              # TODO: above needed?
-            #  'transformer_params': {'scale_factor': np.array([1.0])}, # due to the way Netpyne generates spikes, no scaling by population size is needed
 
              "proxy_params": {"geometry": 600, "record": ["spike"],
                               "corr": 0.3, "tau": 10.0, # comment for RATE_TO_SPIKES
@@ -753,10 +720,6 @@ for trg_pop, target_nodes, conn_scaling, this_conn_spec, scale_factor in \
         # with the interface scale factor (normalized by TVB indegree to STN/Striatum)
         # and the global coupling scaling.
         if tvb_spikeNet_model_builder.output_interfaces[-1]["coupling_mode"] == "spikeNet":
-#             if trg_pop == "E":
-#                 tvb_spikeNet_model_builder.output_interfaces[-1]["proxy_inds"] = CTXtoSTNinds
-#             else:
-#                 tvb_spikeNet_model_builder.output_interfaces[-1]["proxy_inds"] = CTXtoSNinds
             tvb_spikeNet_model_builder.output_interfaces[-1]["proxy_inds"] = proxy_inds
             # In this case connections from each TVB proxy to TC 
             # are scaled additionally with the Maith et al. optimized weights
@@ -770,7 +733,7 @@ for trg_pop, target_nodes, conn_scaling, this_conn_spec, scale_factor in \
             # with weights TVB_w_ji * wCtxSTN or wCtxiSN or wCtxdSN (j for STN or Striatum) 
             # and probabilities pCtxSTN or pCtxiSN or pCtxdSN, respectively
         else:
-            # In this case connections from each TVB proxy to STN/Striatum 
+            # In this case connections from each TVB proxy to TC_pop 
             # are equal to the Maith et al. optimized weights
             tvb_spikeNet_model_builder.output_interfaces[-1]["weights"] = conn_scaling
             # In this case coupling.a is already applied during computing TVB coupling.
@@ -823,15 +786,13 @@ for src_pop, nodes, in zip(
 
 # Configure and build:
 tvb_spikeNet_model_builder.configure()
-# tvb_spikeNet_model_builder.print_summary_info_details(recursive=1)
+tvb_spikeNet_model_builder.print_summary_info_details(recursive=1)
     
-#print("\noutput (TVB->NetPyNE coupling) interfaces' configurations:\n")
-#display(tvb_spikeNet_model_builder.output_interfaces)
+print("\noutput (TVB->NetPyNE coupling) interfaces' configurations:\n")
+display(tvb_spikeNet_model_builder.output_interfaces)
     
-#print("\ninput (NetPyNE->TVB update) interfaces' configurations:\n")
-#display(tvb_spikeNet_model_builder.input_interfaces)
-    
-
+print("\ninput (NetPyNE->TVB update) interfaces' configurations:\n")
+display(tvb_spikeNet_model_builder.input_interfaces)
 
 simulator = tvb_spikeNet_model_builder.build()
 
@@ -893,7 +854,7 @@ print("\nSimulated in %f secs!" % (time.time() - t_start))
 netpyne.finalize()
 
 from netpyne import sim
-popIds = [id for id in sim.net.pops.keys()][:6]
+popIds = [id for id in sim.net.pops.keys()][4] # only thalamus
 sa = sim.analysis
 #%matplotlib inline
 sim.analysis.plotConn(showFig=True, includePre=popIds, includePost=popIds, feature='weight');
