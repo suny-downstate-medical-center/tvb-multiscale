@@ -46,14 +46,14 @@ class ThalamicVIMBuilder(NetpyneNetworkBuilder):
 
         spikingPopsE = {
             self.primary_motor_cortex_R: 'PY_pop',
-            self.brainstem: 'ION_pop',
-            self.thalamus_R: 'TC_pop',
-            self.cerebellar_cortex_L: 'GrC_pop'
+            #self.brainstem: 'ION_pop',
+            #self.thalamus_R: 'TC_pop',
+            #self.cerebellar_cortex_L: 'GrC_pop'
         }
 
         spikingPopsI = {
             self.primary_motor_cortex_R: 'FSI_pop',
-            self.cerebellar_cortex_L: 'PC_pop'
+            #self.cerebellar_cortex_L: 'PC_pop'
         }
 
         self.populations = [
@@ -65,13 +65,15 @@ class ThalamicVIMBuilder(NetpyneNetworkBuilder):
             },
             {
                 "label": "I", "model": None,
-                "nodes": [self.primary_motor_cortex_R, self.cerebellar_cortex_L],
+                "nodes": [self.primary_motor_cortex_R],#, self.cerebellar_cortex_L],
                 "params": lambda node_id: {"global_label": spikingPopsI[node_id]}, # population of spiking network to be interfaced with inhibitory population of TVB node
                 "scale": self.scale_i
             },
         ]
+        # self.populations_connections = [] #don't need?
 
-    # TODO: seems to be renundant, having input_interfaces in TVBNetpyneInterfaceBuilder?
+
+    # TODO: seems to be redundant, having input_interfaces in TVBNetpyneInterfaceBuilder?
     # def set_output_devices(self):
     #     # Creating  devices to be able to observe NetPyNE activity:
     #     # Labels have to be different
@@ -103,3 +105,43 @@ class WilsonCowanThalamicVIMBuilder(ThalamicVIMBuilder):
 
     def set_defaults(self, **kwargs):
         super(WilsonCowanThalamicVIMBuilder, self).set_defaults()
+
+class WilsonCowanTVBNetpyneInterfaceBuilder(WilsonCowanThalamicVIMBuilder):
+    def __init__(self):
+        super(WilsonCowanTVBNetpyneInterfaceBuilder, self).__init__()
+    
+    def a():
+        # Build a TVB-NetPyNE interface with all the appropriate connections between the
+        # TVB and NetPyNE modelled regions
+
+        from tvb_multiscale.tvb_netpyne.interfaces.builders import TVBNetpyneInterfaceBuilder   
+        tvb_netpyne_interface_builder = TVBNetpyneInterfaceBuilder()  # non opinionated builder
+
+        tvb_netpyne_interface_builder.config = config
+        tvb_netpyne_interface_builder.tvb_cosimulator = simulator            
+        tvb_netpyne_interface_builder.spiking_network = netpyne_network
+        # This can be used to set default tranformer and proxy models:
+        tvb_netpyne_interface_builder.model = INTERFACE_MODEL  # "RATE"
+        tvb_netpyne_interface_builder.input_flag = True   # If True, NetPyNE->TVB update will be implemented
+        tvb_netpyne_interface_builder.output_flag = True  # If True, TVB->NetPyNE coupling will be implemented
+        # If default_coupling_mode = "TVB", large scale coupling towards spiking regions is computed in TVB
+        # and then applied with no time delay via a single "TVB proxy node" / NetPyNE device for each spiking region,
+        # "1-to-1" TVB->NetPyNE coupling.
+        # If any other value, we need 1 "TVB proxy node" / NetPyNE device for each TVB sender region node, and
+        # large-scale coupling for spiking regions is computed in NetPyNE, 
+        # taking into consideration the TVB connectome weights and delays, 
+        # in this "1-to-many" TVB->NetPyNE coupling.
+        tvb_netpyne_interface_builder.default_coupling_mode = INTERFACE_COUPLING_MODE  # "spikeNet" # "TVB" 
+
+        # Number of neurons per population to be used to compute population mean instantaneous firing rates:
+        tvb_netpyne_interface_builder.N_E = int(netpyne_model_builder.population_order * scale_e)
+        tvb_netpyne_interface_builder.N_I = int(netpyne_model_builder.population_order * scale_i)
+
+        tvb_netpyne_interface_builder.proxy_inds = NETPYNE_NODES_INDS
+        # Set exclusive_nodes = True (Default) if the spiking regions substitute for the TVB ones:
+        tvb_netpyne_interface_builder.exclusive_nodes = True 
+
+        tvb_netpyne_interface_builder.synaptic_weight_scale_func = synaptic_weight_scale_func
+
+        tvb_netpyne_interface_builder.output_interfaces = []
+        tvb_netpyne_interface_builder.input_interfaces = []

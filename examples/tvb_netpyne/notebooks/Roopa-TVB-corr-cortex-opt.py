@@ -511,7 +511,7 @@ netpyne_network = spiking_network_builder.build() # set_defaults=False
 #print("print(spiking_network_builder.netpyne_instance.netParams.connParams.items())")
 #print(spiking_network_builder.netpyne_instance.netParams.connParams.items())
 #for i, (connId, conn) in enumerate(spiking_network_builder.netpyne_instance.netParams.connParams.items()):
-#    print(f"{i}. {connId}: {conn['weight']} {conn['probability']}")
+#    print(f"{i}. {connId}: {conn.get('weight')} {conn['probability']}")
 # confirmed: 13 connections between pops (weights and probs confirmed)
 
 # confirmed: 6 spike recorders, as in ANNarchy when "_ts" stuff commented out
