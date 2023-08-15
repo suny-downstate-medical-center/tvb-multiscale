@@ -6,6 +6,7 @@ from tvb_multiscale.core.orchestrators.spikeNet_app import SpikeNetSerialApp  # 
 from tvb_multiscale.core.orchestrators.tvb_app import TVBSerialApp as TVBSerialAppBase
 from tvb_multiscale.core.orchestrators.serial_orchestrator import SerialOrchestrator
 
+
 from tvb_multiscale.tvb_netpyne.config import Config, CONFIGURED, initialize_logger
 from tvb_multiscale.tvb_netpyne.netpyne_models.builders.netpyne_factory import load_netpyne
 from tvb_multiscale.tvb_netpyne.netpyne_models.network import NetpyneNetwork
@@ -66,8 +67,9 @@ class NetpyneApp(HasTraits):
         self.spiking_cosimulator = load_netpyne(self.config)
 
     def configure(self):
+        super(NetpyneApp, self).configure()
         self.spikeNet_builder.netpyne_synaptic_weight_scale = self.synaptic_weight_scale(is_coupling_mode_tvb=False)
-
+        # TODO: check self.spikeNet_builder.netpyne_instance = self.spiking_cosimulator
     def clean_up(self):
         self.spiking_cosimulator.finalize()
 
@@ -92,6 +94,7 @@ class NetpyneSerialApp(NetpyneApp, SpikeNetSerialApp):
 class TVBSerialApp(TVBSerialAppBase):
 
     """TVBSerialApp class"""
+
 
     config = Attr(
         label="Configuration",
@@ -152,18 +155,15 @@ class TVBNetpyneSerialOrchestrator(SerialOrchestrator):
         default=NetpyneSerialApp()
     )
 
+    def link_spikeNet_to_TVB_cosimulator(self):
+        super(TVBNetpyneSerialOrchestrator, self).link_spikeNet_to_TVB_cosimulator()
+        # for parallel spiking simulation
+        self.tvb_app.cosimulator.is_root_host = self.spikeNet_app.spiking_cosimulator.isRootNode
+        self.tvb_app.cosimulator.synchronize_spiking_hosts = self.spikeNet_app.spiking_cosimulator.gatherFromNodes
+
     def build(self):
-        # TODO: Correct this redundancy
-        self.config.simulation_length = getattr(self.config, "SIMULATION_LENGTH",
-                                                self.tvb_app.cosimulator_builder.simulation_length)
         self.tvb_app.interfaces_builder.synaptic_weight_scale_func = self.spikeNet_app.synaptic_weight_scale
         self.tvb_app.interfaces_builder.synaptic_model_funcs = \
             self.spikeNet_app.spikeNet_builder.proxy_node_synaptic_model_funcs
 
-        # NetPyNE model is built in two steps.
-        # First need to create declarative-style specification for both spiking network itself
-        # and TVB-Netpyne proxy divides (interfaces):
-        SerialOrchestrator.build(self)
-
-        # Once done, network can be instantiated based on the specification:
-        self.spikeNet_app.spiking_cosimulator.instantiateNetwork()
+        super(TVBNetpyneSerialOrchestrator, self).build()

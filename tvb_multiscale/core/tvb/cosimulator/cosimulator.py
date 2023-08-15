@@ -287,7 +287,7 @@ class CoSimulator(CoSimulatorBase, HasTraits):
         return stimulus
 
     def __call__(self, simulation_length=None, random_state=None, n_steps=None,
-                 cosim_updates=None, recompute_requirements=False):
+                 cosim_updates=None, recompute_requirements=False, skip_prepare_cosim=False):
         """
         Return an iterator which steps through simulation time, generating monitor outputs.
 
@@ -298,15 +298,49 @@ class CoSimulator(CoSimulatorBase, HasTraits):
         :param n_steps: Length of the simulation to perform in integration steps. Overrides simulation_length.
         :param cosim_updates: data from the other co-simulator to update TVB state and history
         :param recompute_requirements: check if the requirement of the simulation
+        :params check_inputs: check if the cosimulation update inputs (if any) are correct and update cosimulation history
         :return: Iterator over monitor outputs.
         """
 
         self.calls += 1
 
+        if not skip_prepare_cosim:
+            n_steps = self._prepare_cosimulation_call(simulation_length, n_steps, cosim_updates)
+
+        # Initialization
+        if self._compute_requirements or recompute_requirements:
+            # Compute requirements for CoSimulation.simulation_length, not for synchronization time
+            self._guesstimate_runtime()
+            self._calculate_storage_requirement()
+            self._compute_requirements = False
+        self.integrator.set_random_state(random_state)
+
+        local_coupling = self._prepare_local_coupling()
+        stimulus = self._prepare_stimulus()
+        state = self.current_state
+        start_step = self.current_step + 1
+        node_coupling = self._loop_compute_node_coupling(start_step)
+
+        # integration loop
+        for step in range(start_step, start_step + n_steps):
+            self._loop_update_stimulus(step, stimulus)
+            state = self.integrate_next_step(state, self.model, node_coupling, local_coupling,
+                                             numpy.where(stimulus is None, 0.0, stimulus))
+            state_output = self._loop_update_cosim_history(step, state)
+            node_coupling = self._loop_compute_node_coupling(step + 1)
+            output = self._loop_monitor_output(step-self.synchronization_n_step, state_output, node_coupling)
+            if output is not None:
+                yield output
+
+        self.current_state = state
+        self.current_step = self.current_step + n_steps
+
+    def _prepare_cosimulation_call(self, simulation_length=None, n_steps=None, cosim_updates=None):
+        # Check if the cosimulation update inputs (if any) are correct and update cosimulation history:
+
         if simulation_length is not None:
             self.simulation_length = float(simulation_length)
 
-        # Check if the cosimulation update inputs (if any) are correct and update cosimulation history:
         if self._cosimulation_flag:
             if n_steps is not None:
                 raise ValueError("n_steps is not used in cosimulation!")
@@ -340,34 +374,7 @@ class CoSimulator(CoSimulatorBase, HasTraits):
                 if not numpy.issubdtype(type(n_steps), numpy.integer):
                     raise TypeError("Incorrect type for n_steps: %s, expected integer" % type(n_steps))
                 self.simulation_length = n_steps * self.integrator.dt
-
-        # Initialization
-        if self._compute_requirements or recompute_requirements:
-            # Compute requirements for CoSimulation.simulation_length, not for synchronization time
-            self._guesstimate_runtime()
-            self._calculate_storage_requirement()
-            self._compute_requirements = False
-        self.integrator.set_random_state(random_state)
-
-        local_coupling = self._prepare_local_coupling()
-        stimulus = self._prepare_stimulus()
-        state = self.current_state
-        start_step = self.current_step + 1
-        node_coupling = self._loop_compute_node_coupling(start_step)
-
-        # integration loop
-        for step in range(start_step, start_step + n_steps):
-            self._loop_update_stimulus(step, stimulus)
-            state = self.integrate_next_step(state, self.model, node_coupling, local_coupling,
-                                             numpy.where(stimulus is None, 0.0, stimulus))
-            state_output = self._loop_update_cosim_history(step, state)
-            node_coupling = self._loop_compute_node_coupling(step + 1)
-            output = self._loop_monitor_output(step-self.synchronization_n_step, state_output, node_coupling)
-            if output is not None:
-                yield output
-
-        self.current_state = state
-        self.current_step = self.current_step + n_steps
+        return n_steps
 
     def get_cosim_updates(self, cosimulation=True):
         cosim_updates = None
@@ -402,7 +409,7 @@ class CoSimulator(CoSimulatorBase, HasTraits):
                     t, x = t_x
                     tl.append(t)
                     xl.append(x)
-        return self.send_cosim_coupling(cosimulation), self.current_step - current_step
+        return self.current_step - current_step
 
     def _log_print_progress_message(self, simulated_steps, simulation_length):
         log_msg = "...%.3f%% completed in %g sec!" % \
@@ -410,49 +417,6 @@ class CoSimulator(CoSimulatorBase, HasTraits):
         self.log.info(log_msg)
         if self.PRINT_PROGRESSION_MESSAGE:
             print("\r" + log_msg, end="")
-
-    def run_cosimulation(self, ts, xs, wall_time_start, advance_simulation_for_delayed_monitors_output=True, **kwds):
-        simulation_length = self.simulation_length
-        synchronization_time = self.synchronization_time
-        if advance_simulation_for_delayed_monitors_output:
-            simulation_length += synchronization_time
-        synchronization_n_step = int(self.synchronization_n_step)  # store the configured value
-        if not self.n_tvb_steps_ran_since_last_synch:
-            self.n_tvb_steps_ran_since_last_synch = synchronization_n_step
-        simulated_steps = 0
-        remaining_steps = int(numpy.round(simulation_length / self.integrator.dt))
-        # Send TVB's initial condition to spikeNet!:
-        self.send_cosim_coupling(True)
-        self._tic = time.time()
-        while remaining_steps > 0:
-            self.synchronization_n_step = numpy.minimum(remaining_steps, synchronization_n_step)
-            self.n_tvb_steps_ran_since_last_synch = \
-                self.run_for_synchronization_time(ts, xs, wall_time_start, cosimulation=True, **kwds)[1]
-            simulated_steps += self.n_tvb_steps_ran_since_last_synch
-            remaining_steps -= self.n_tvb_steps_ran_since_last_synch
-            self._log_print_progress_message(simulated_steps, simulation_length)
-        self.synchronization_n_step = int(synchronization_n_step)  # restore the configured value
-        self.simulation_length = simulation_length                 # restore the actually implemented value
-
-    def run(self, **kwds):
-        """Convenience method to call the CoSimulator with **kwds and collect output data."""
-        ts, xs = [], []
-        for _ in self.monitors:
-            ts.append([])
-            xs.append([])
-        wall_time_start = time.time()
-        self.simulation_length = kwds.pop("simulation_length", self.simulation_length)
-        asfdmo = kwds.pop("advance_simulation_for_delayed_monitors_output", True)
-        if self._cosimulation_flag:
-            self.run_cosimulation(ts, xs, wall_time_start,
-                                  advance_simulation_for_delayed_monitors_output=asfdmo,
-                                  **kwds)
-        else:
-            self.run_for_synchronization_time(ts, xs, wall_time_start, cosimulation=False, **kwds)
-        for i in range(len(ts)):
-            ts[i] = numpy.array(ts[i])
-            xs[i] = numpy.array(xs[i])
-        return list(zip(ts, xs))
     
     def info(self, recursive=0):
         info = HasTraits.info(self, recursive=recursive)
